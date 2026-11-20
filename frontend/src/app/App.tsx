@@ -18,6 +18,16 @@ const AnalyzeWorkspacePage = lazy(() =>
     default: m.AnalyzeWorkspacePage,
   }))
 );
+const RealTimeStocksPage = lazy(() =>
+  import("../features/stocks/RealTimeStocksPage").then((m) => ({
+    default: m.RealTimeStocksPage,
+  }))
+);
+const FinfluencersPage = lazy(() =>
+  import("../features/finfluencers/FinfluencersPage").then((m) => ({
+    default: m.FinfluencersPage,
+  }))
+);
 const DemoCorpusPage = lazy(() =>
   import("../features/dashboard/WorkspacePlaceholderPages").then((m) => ({
     default: m.DemoCorpusPage,
@@ -63,6 +73,8 @@ export function AppRoutes() {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<DashboardOverviewPage />} />
           <Route path="/analyze" element={<AnalyzeWorkspacePage />} />
+          <Route path="/stocks" element={<RealTimeStocksPage />} />
+          <Route path="/finfluencers" element={<FinfluencersPage />} />
           <Route path="/corpus" element={<DemoCorpusPage />} />
           <Route path="/how-it-works" element={<HowChecksWorkPage />} />
         </Route>

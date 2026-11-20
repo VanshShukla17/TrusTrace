@@ -22,7 +22,7 @@ test.describe("Tip Autopsy Core E2E & Safety Verification (Task 2.14)", () => {
     // Navigate into single-window dashboard shell
     await page.getByRole("button", { name: /Analyze a Tip/i }).click();
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByText("Dated Market Snapshots · NSE / BSE")).toBeVisible();
+    await expect(page.getByText(/(Real · Live Feed|Dated Market Snapshots) · NSE \/ BSE/)).toBeVisible();
 
     // Verify Dashboard shell fits in a single window (outer document has zero vertical overflow; inner pane scrolls)
     const dashOverflow = await page.evaluate(() => ({

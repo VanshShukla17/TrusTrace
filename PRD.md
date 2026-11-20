@@ -1,8 +1,8 @@
 # Tip Autopsy — Product Requirements Document
 
-**Document status:** Draft for product and architecture review  
-**Blueprint version:** 1.0  
-**Product specification baseline:** *Tip Autopsy — Final Unified Specification Sheet*, v2.0  
+**Document status:** Approved V1 baseline + Phase 4 (V2) Real-Time & Finfluencer Alerts extension  
+**Blueprint version:** 2.0  
+**Product specification baseline:** *Tip Autopsy — Final Unified Specification Sheet*, v2.0 + Phase 4 Real-Time Extension  
 **Product principle:** **We grade the information, not the investment.**
 
 ---
@@ -54,10 +54,10 @@ Tip Autopsy changes the unit of analysis from *who should I trust?* to *what evi
 3. **Unknown is a valid result.** Missing or stale data produces `Could not verify`, `Unclear`, or `Not stated`; it never produces an inferred fact.
 4. **No dead-end on a missing SEBI match.** `Not found in SEBI register snapshot` is a neutral result. The rest of the autopsy continues.
 5. **Bounded AI & multimodal extraction.** AI/OCR/STT may extract text and parse claims from uploaded photos, videos, or pasted text into a Claim Ledger only. Market checks, statistical calculations, source labels, and report sentences are deterministic.
-6. **Provenance by default.** Show source, snapshot date, and Real/Synthetic status wherever a user sees evidence derived from a dataset.
-7. **Privacy by default.** No login, account, portfolio, personal profile, or persistent record of a user's uploaded photo/video or pasted tip in Version 1.
+6. **Provenance by default.** Show source, fetch timestamp or snapshot date, and Real (`Live Feed` vs. `Dated Snapshot`), Synthetic, or Mixed status wherever a user sees evidence derived from a dataset.
+7. **Privacy by default.** No login, account, portfolio, personal profile, or persistent record of a user's uploaded photo/video, pasted tip, or Pause & Plan answers. In Phase 4, the sole permitted user-contact persistence is an explicit opt-in Finfluencer WhatsApp alert subscription (encrypted/masked destination, consent timestamp, and one-click unsubscribe).
 8. **Neutral presentation.** Never use stock-level red/green treatment that could be interpreted as an action signal. Use color only for clearly defined evidence classifications such as disclosure transparency.
-9. **No social-platform scraping.** Use permitted public historical data and curated snapshots; do not scrape social platforms or rely on live social endpoints.
+9. **No social-platform scraping.** Use permitted public historical/live market APIs, curated snapshots, and YouTube's official public Atom RSS / WebSub feeds; never scrape Telegram, WhatsApp, Instagram, or unauthorized social endpoints.
 
 ## 4. Goals, Success Metrics, and Non-Goals
 
@@ -118,6 +118,10 @@ Tip Autopsy changes the unit of analysis from *who should I trust?* to *what evi
 | FR-11 | Evidence transparency | Show Real/Synthetic/Mixed labels and snapshot dates on every evidence view. | No synthetic data is visually indistinguishable from real data. |
 | FR-12 | Privacy | Process uploaded photos, videos, and pasted text transiently; do not create end-user accounts or persist user-submitted media or tips. | No user-uploaded photo/video, raw pasted text, or personal user data is written to disk persistence, the application database, or ordinary logs. |
 | FR-13 | Voice readout (optional) | Provide short Hindi, Kannada, or English voice summaries through Sarvam when configured. | Voice failure never blocks the text experience; voice reads only the already-guarded facts card. |
+| FR-14 | Zero-cost real-time market data | Fetch live/near-real-time Indian NSE/BSE equity quotes, `NIFTY 50` / `SENSEX` / `BANKNIFTY` benchmarks, universal NSE/BSE ticker search, and fresh daily OHLCV history via free Yahoo Finance v8 endpoints with server-side TTL caching and automatic Supabase snapshot fallback. | Every live metric shows `Real · Live Feed · fetched HH:MM IST` (with honest exchange delay note); upstream failure falls back cleanly to dated snapshots or `Could not verify`. |
+| FR-15 | Real-Time Stocks page (`/stocks`) | Dedicated workspace page displaying live benchmark cards, universal NSE/BSE ticker search, curated Indian equities watchlist, live price/volume/market-cap/52W range, interactive intraday/3M Recharts chart, and one-click handoff to `/analyze`. | Neutral presentation with zero BUY/SELL badges or red/green action coloring; every figure displays tabular numerals and explicit freshness provenance. |
+| FR-16 | Finfluencers directory & real-time YouTube monitoring (`/finfluencers`) | Track Indian finfluencers with SEBI register snapshot status, linked YouTube channel, and real-time new video detection via official zero-cost YouTube Atom RSS feeds (plus optional WebSub push). Extract captions (or fallback to title + description), parse Claim Ledger with bounded free-tier AI (Gemini / Groq + deterministic fallback), run deterministic SEBI + live market checks, and display Output-Guarded video Facts Cards. | Every analyzed YouTube video shows `Real · YouTube Official RSS`, transcript vs. metadata-only provenance, Claim Ledger, Hype/Disclosure audit, and guarded Information Verdict without social scraping. |
+| FR-17 | Opt-in automated WhatsApp alerts | Allow users to subscribe to any tracked finfluencer on `/finfluencers` with explicit opt-in consent and receive an automated WhatsApp message whenever a new YouTube video is analyzed, using zero-cost adapters (`callmebot`, official `meta_cloud` free sandbox, or `dry_run` preview + `wa.me`). | Every WhatsApp alert passes strictly through allowlisted templates + Output Guard + verbatim mandatory disclaimer; contact credentials are encrypted/masked with one-click unsubscribe. |
 
 ### 5.2 Required market checks
 
@@ -256,8 +260,9 @@ The source specification requires a mobile-first responsive interface and neutra
 
 | Dataset | Intended source | Required label |
 |---|---|---|
-| Prices, volume, market cap, circuit bands, ASM/GSM | NSE/BSE public historical data or an authorized source | `Real` plus source and snapshot date |
+| Prices, volume, market cap, circuit bands, ASM/GSM | NSE/BSE public historical snapshots + Phase 4 free Yahoo Finance v8 NSE/BSE live feed (with snapshot fallback) | `Real · Live Feed (fetched HH:MM IST)` or `Real · Dated Snapshot (as-of date)` |
 | Registered intermediaries | SEBI public register | `Real` plus snapshot date |
+| Finfluencer new YouTube uploads | Official YouTube public Atom RSS / WebSub feed + public caption tracks (zero scraping) | `Real · YouTube Official RSS` plus publish timestamp and `Transcript` / `Metadata only` label |
 | Manipulation calibration cases | Public SEBI enforcement orders | `Real`; disclose that the calibration sample is limited and report uncertainty |
 | Hinglish tip ledger, curated `photos/` & `videos/` corpus, and coordinated-promotion examples | Hand-collected public posts/screenshots/clips and team-authored examples | `Mixed` or `Synthetic` on every relevant record |
 

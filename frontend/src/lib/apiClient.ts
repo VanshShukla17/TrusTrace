@@ -5,14 +5,22 @@ import type {
   CoordinatedDemoSignalResponse,
   DemoCaseMeta,
   ExactDateTip,
+  FinfluencersResponse,
   GuardedReportResponse,
+  LiveQuotesResponse,
+  LiveStockDetailResponse,
+  LiveStockSearchItem,
   ParseResponse,
   PricesResponse,
   SebiLookupResponse,
   StockLookupItem,
+  SubscribeResponse,
   SupportedVoiceLanguage,
+  SyncFinfluencerResponse,
+  TestAlertResponse,
   TipMarkerItem,
   VoiceReadoutResponse,
+  WhatsAppProviderKind,
 } from "../types/api";
 
 export const API_BASE_URL =
@@ -191,5 +199,87 @@ export function fetchCoordinatedDemoSignal(
 ): Promise<CoordinatedDemoSignalResponse> {
   return apiJson<CoordinatedDemoSignalResponse>(
     `/api/meta/coordinated-demo?ticker=${encodeURIComponent(ticker)}`
+  );
+}
+
+// Phase 4: Zero-Cost Real-Time Stocks & Finfluencer YouTube → WhatsApp Alert APIs
+export function fetchLiveQuotes(tickers?: string[]): Promise<LiveQuotesResponse> {
+  const qs = tickers && tickers.length > 0 ? `?tickers=${encodeURIComponent(tickers.join(","))}` : "";
+  return apiJson<LiveQuotesResponse>(`/api/live/stocks/quotes${qs}`);
+}
+
+export async function searchLiveStocks(query: string): Promise<LiveStockSearchItem[]> {
+  const res = await apiJson<{ items: LiveStockSearchItem[] }>(
+    `/api/live/stocks/search?q=${encodeURIComponent(query)}`
+  );
+  return res.items;
+}
+
+export function fetchLiveStockDetail(
+  ticker: string,
+  range: "1d" | "1mo" | "3mo" | "6mo" = "1mo"
+): Promise<LiveStockDetailResponse> {
+  return apiJson<LiveStockDetailResponse>(
+    `/api/live/stocks/${encodeURIComponent(ticker)}/detail?range=${encodeURIComponent(range)}`
+  );
+}
+
+export function fetchFinfluencers(): Promise<FinfluencersResponse> {
+  return apiJson<FinfluencersResponse>("/api/finfluencers");
+}
+
+export function syncFinfluencerVideos(influencerId: string): Promise<SyncFinfluencerResponse> {
+  return apiJson<SyncFinfluencerResponse>(
+    `/api/finfluencers/${encodeURIComponent(influencerId)}/sync`,
+    { method: "POST" }
+  );
+}
+
+export function subscribeFinfluencerWhatsApp(params: {
+  influencerId: string;
+  phone: string;
+  provider: WhatsAppProviderKind;
+  callmebot_api_key?: string;
+  consent_accepted: true;
+}): Promise<SubscribeResponse> {
+  return apiJson<SubscribeResponse>(
+    `/api/finfluencers/${encodeURIComponent(params.influencerId)}/subscribe`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: params.phone,
+        provider: params.provider,
+        callmebot_api_key: params.callmebot_api_key || undefined,
+        consent_accepted: params.consent_accepted,
+      }),
+    }
+  );
+}
+
+export function sendFinfluencerTestAlert(params: {
+  influencerId: string;
+  subscription_id: string;
+}): Promise<TestAlertResponse> {
+  return apiJson<TestAlertResponse>(
+    `/api/finfluencers/${encodeURIComponent(params.influencerId)}/test-alert`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription_id: params.subscription_id }),
+    }
+  );
+}
+
+export function unsubscribeFinfluencerAlert(
+  token: string
+): Promise<{ unsubscribed: boolean; phone_masked: string | null }> {
+  return apiJson<{ unsubscribed: boolean; phone_masked: string | null }>(
+    "/api/finfluencers/unsubscribe",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    }
   );
 }

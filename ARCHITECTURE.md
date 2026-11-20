@@ -1,8 +1,8 @@
 # Tip Autopsy — Technical Architecture
 
-**Document status:** Draft for architecture review  
-**Blueprint version:** 1.0  
-**Architecture principle:** Deterministic evidence engine, bounded AI parsing, zero user-account persistence.
+**Document status:** Approved V1 baseline + Phase 4 (V2) Zero-Cost Real-Time & Finfluencer WhatsApp Alert Architecture  
+**Blueprint version:** 2.0  
+**Architecture principle:** Deterministic evidence engine, bounded free-tier AI parsing, zero-cost live feeds with snapshot fallback, Output-Guarded WhatsApp alerts, and narrow opt-in subscription persistence only.
 
 ---
 
@@ -36,6 +36,10 @@ The source specification permits React + Tailwind, FastAPI or Express, PostgreSQ
 | Backend hosting | Render web service | Simple Node.js/Express deployment with environment-managed secrets and logs. |
 | Production database | Supabase PostgreSQL | Managed PostgreSQL with branching/staging support, backups, and security advisors. |
 | Optional voice | Sarvam Voice API | Matches the product specification's optional Hindi/Kannada/English readout. |
+| Real-time Indian market feed (Phase 4) | Yahoo Finance v8 Chart/Quote & Search API (`.NS`, `.BO`, `^NSEI`, `^BSESN`, `^NSEBANK`) + TTL cache | Zero-cost (`$0`, no API key) near-real-time NSE/BSE quotes, ticker search, and daily OHLCV with automatic Supabase snapshot fallback. |
+| Real-time YouTube video monitor (Phase 4) | Official YouTube Atom RSS (`youtube.com/feeds/videos.xml`) + optional WebSub push + public caption extractor | Zero-cost (`$0`, unlimited, zero scraping) detection of new finfluencer uploads + caption/metadata extraction. |
+| Bounded free-tier AI parser (Phase 4) | Google Gemini AI Studio free tier (`gemini-2.5-flash`) / Groq free tier (`llama-3.3-70b-versatile`) + deterministic Hinglish fallback | Zero-cost structured JSON Claim Ledger extraction strictly validated via Zod and source spans. |
+| Automated WhatsApp alerts (Phase 4) | Pluggable `whatsappNotifier.ts` (`callmebot`, official `meta_cloud` free sandbox, `dry_run` preview) | Zero-cost automated delivery of strictly Output-Guarded video evidence summaries + mandatory disclaimer. |
 
 Use a single repository with separate `frontend/`, `backend/`, and `supabase/` workspaces. Do not add MongoDB, Redis, a message broker, microservices, or Kubernetes for Version 1; none is needed for the expected scale or demo workflow.
 
@@ -44,14 +48,22 @@ Use a single repository with separate `frontend/`, `backend/`, and `supabase/` w
 ```mermaid
 flowchart TD
     U[Mobile / Desktop Browser] --> FE[React + TypeScript Client]
-    FE -->|"Photo / Video / Text + Influencer & Stock"| API[Node.js + Express REST API]
-    API -->|"Transient in-memory extraction"| PARSE[Bounded Multimodal & Claim Parser Adapter]
+    FE -->|"Photo / Video / Text + Live Stocks + Finfluencers"| API[Node.js + Express REST API]
+    API -->|"Transient in-memory extraction"| PARSE[Bounded Multimodal & Free AI Claim Parser]
+    API --> LIVE[Zero-Cost Live Market Adapter · Yahoo Finance NSE/BSE]
     API --> ENGINE[Deterministic Evidence Engine]
     API --> REPORT[Template Report Builder + Output Guard]
-    ENGINE --> DB[(Supabase PostgreSQL Snapshots)]
+    LIVE -. snapshot fallback .-> DB[(Supabase PostgreSQL · RLS Protected)]
+    ENGINE --> DB
     REPORT --> DB
     PARSE --> VALIDATE[Zod + Source-Span Validation]
     VALIDATE --> FE
+    YT[YouTube Official Atom RSS / WebSub] --> MONITOR[YouTube Alert Pipeline · 3m Poll / Cron / Webhook]
+    MONITOR --> PARSE
+    MONITOR --> LIVE
+    MONITOR --> ENGINE
+    MONITOR --> REPORT
+    REPORT -->|"Output-Guarded Alert + Disclaimer Only"| WA[Zero-Cost WhatsApp Adapter · CallMeBot / Meta Cloud / Preview]
     INGEST[Snapshot Ingestion Jobs] --> DB
     CORPUS[Curated photos/ & videos/ Corpus] --> INGEST
     VOICE[Optional Sarvam Voice Adapter] -. guarded text only .-> API
@@ -264,6 +276,15 @@ Store public enforcement-case references and the associated security/date window
 
 Store dataset key, start/end times, snapshot identifier, status, imported/rejected counts, validation summary, and a safe error summary. Do not store secrets or raw user text.
 
+#### Phase 4 Extensions: YouTube Monitoring & Opt-In WhatsApp Alert Tables
+
+- **`influencer` (extended columns):** `youtube_channel_id` (text, unique when non-null), `youtube_handle` (text, nullable), `youtube_channel_url` (text, nullable), `avatar_initials` (text, nullable), and `bio_summary` (text, nullable).
+- **`youtube_video_analysis`:** Stores each analyzed YouTube upload (`id`, `influencer_id` FK, `video_id` unique, `title`, `video_url`, `thumbnail_url`, `published_at`, `transcript_source` `'CAPTIONS' | 'METADATA_ONLY'`, `detected_ticker`, `claim_ledger_json`, `hype_flags_json`, `disclosure_grade`, `guarded_report_json`, `guard_status` `'PASSED' | 'BLOCKED_FALLBACK'`, `whatsapp_summary_text`, `analyzed_at`).
+- **`finfluencer_subscription`:** Narrow opt-in alert persistence (`id`, `influencer_id` FK, `phone_hash` HMAC-SHA256, `phone_masked` e.g. `+91******3210`, `phone_encrypted` AES-256-GCM, `provider` `'callmebot' | 'meta_cloud' | 'dry_run'`, `provider_config_encrypted` AES-256-GCM, `is_active`, `consent_given_at`, `unsubscribe_token` unique, `created_at`). Unique index on (`influencer_id`, `phone_hash`).
+- **`whatsapp_delivery_log`:** Idempotent delivery audit log (`id`, `subscription_id` FK, `video_analysis_id` FK, `provider`, `delivery_status` `'SENT' | 'DRY_RUN_PREVIEW' | 'FAILED' | 'BLOCKED_BY_GUARD'`, `message_preview`, `error_code`, `sent_at`). Unique constraint on (`subscription_id`, `video_analysis_id`) guarantees a subscriber never receives duplicate alerts for the same video.
+
+All Phase 4 tables MUST have Supabase Row Level Security (RLS) enabled with explicit `deny_public_access_*` policies (`FOR ALL TO anon, authenticated USING (false) WITH CHECK (false)`). Plaintext phone numbers and CallMeBot API keys must never be logged or returned in API responses.
+
 ### 3.3 Database rules, RLS, and indexes
 
 - Use foreign keys and explicit enum/check constraints for statuses and data labels.
@@ -392,6 +413,22 @@ Use `/api` as the API prefix, JSON request/response bodies, Zod request/response
 | `GET /api/meta/benchmarks` | Retrieve dated `NIFTY_50`, `SENSEX`, and `BANKNIFTY` snapshot summaries and sparklines for the Dashboard Market Overview strip (`Real` label + `as_of_date`, or `Could not verify`). |
 | `GET /api/meta/snapshots` | List available dataset snapshot dates, status, and provenance. |
 | `GET /api/health` | Liveness/readiness check without exposing secrets or internal configuration. |
+
+### 6.2.1 Phase 4 Real-Time Stocks & Finfluencer Alert Endpoints
+
+| Method and path | Purpose |
+|---|---|
+| `GET /api/live/stocks/quotes?tickers=` | Fetch real-time NSE/BSE stock quotes + `NIFTY 50` / `SENSEX` / `BANKNIFTY` benchmarks from Yahoo Finance v8 (TTL cached, automatic snapshot fallback). |
+| `GET /api/live/stocks/search?q=` | Search live Indian NSE/BSE equities via Yahoo Finance search merged with the local Supabase stock catalogue. |
+| `GET /api/live/stocks/:ticker/detail?range=1d\|1mo\|3mo\|6mo` | Live quote metadata + intraday/historical price-volume chart series + quick liquidity/market-cap context for `/stocks`. |
+| `GET /api/finfluencers` | List tracked finfluencers with SEBI register snapshot status, YouTube channel metadata, anonymized subscriber count, and latest analyzed videos. |
+| `GET /api/finfluencers/:id/videos?refresh=true\|false` | Fetch/refresh latest YouTube uploads via official Atom RSS and return AI-extracted Claim Ledger + Output-Guarded Information Verdict per video. |
+| `POST /api/finfluencers/:id/sync` | Rate-limited manual trigger to poll YouTube RSS, analyze unseen videos, and dispatch Output-Guarded WhatsApp alerts to active subscribers. |
+| `POST /api/finfluencers/:id/subscribe` | Opt-in WhatsApp alert subscription (`phone`, `provider`, optional `callmebot_api_key`, mandatory `consent_accepted: true`); stores encrypted destination and returns masked phone + unsubscribe token. |
+| `POST /api/finfluencers/:id/test-alert` | Rate-limited test delivery/preview of the latest Output-Guarded video summary for a subscription. |
+| `GET / POST /api/finfluencers/unsubscribe` | One-click unsubscribe using the opaque `unsubscribe_token`. |
+| `POST /api/internal/youtube/poll` | Secret-protected (`INTERNAL_CRON_SECRET`) polling hook for zero-cost external cron triggers (GitHub Actions / cron-job.org). |
+| `GET / POST /api/webhooks/youtube` | Official YouTube WebSub (PubSubHubbub) hub verification and real-time Atom push notification receiver. |
 
 ### 6.3 Example parse contract
 
@@ -548,8 +585,15 @@ Backend environment settings should include:
 - `PORT`
 - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (and/or `DATABASE_URL` for direct PostgreSQL connection)
 - `FRONTEND_ORIGINS`
-- `LLM_PROVIDER` and the provider-specific server-side API key
+- `LLM_PROVIDER` (`disabled`, `gemini`, `groq`, `openai`, `anthropic`) and `LLM_API_KEY`
 - `SARVAM_API_KEY` only when voice is enabled
+- `LIVE_MARKET_ENABLED` (default `true`) and `LIVE_MARKET_CACHE_TTL_MS` (default `45000`)
+- `YOUTUBE_MONITOR_ENABLED` (default `true`) and `YOUTUBE_POLL_INTERVAL_MS` (default `180000`)
+- `WHATSAPP_PROVIDER` (`dry_run`, `twilio`, `callmebot`, `meta_cloud`)
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_WHATSAPP_FROM` (defaults to Twilio WhatsApp Sandbox `whatsapp:+14155238886`)
+- `META_WHATSAPP_ACCESS_TOKEN` and `META_WHATSAPP_PHONE_NUMBER_ID` (only when using official Meta Cloud API)
+- `SUBSCRIPTION_ENCRYPTION_KEY` (32-byte key for AES-256-GCM encryption & HMAC hashing of opt-in WhatsApp destinations)
+- `INTERNAL_CRON_SECRET` (optional bearer secret protecting `/api/internal/youtube/poll`)
 - Versioned check thresholds and methodology configuration
 - Rate-limit and timeout settings
 

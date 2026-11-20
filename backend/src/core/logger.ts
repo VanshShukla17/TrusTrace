@@ -4,7 +4,7 @@
  */
 
 const SENSITIVE_KEY_PATTERN =
-  /^(text|tip|tip_text|raw_text|transcript|ocr_text|file|buffer|media|payload|answers|pause_plan|prompt|authorization|cookie|token|secret|password|apikey|api_key|service_role|supabase_service_role_key|database_url)$/i;
+  /^(text|tip|tip_text|raw_text|transcript|ocr_text|file|buffer|media|payload|answers|pause_plan|prompt|authorization|cookie|token|secret|password|apikey|api_key|service_role|supabase_service_role_key|database_url|phone|phone_e164|phone_encrypted|callmebot_api_key|provider_config|provider_config_encrypted|unsubscribe_token|meta_whatsapp_access_token|twilio_auth_token|twilio_account_sid|subscription_encryption_key)$/i;
 
 function sanitizeValue(key: string, value: unknown, depth = 0): unknown {
   if (SENSITIVE_KEY_PATTERN.test(key)) {

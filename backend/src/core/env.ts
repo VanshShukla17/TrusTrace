@@ -11,6 +11,17 @@ const optionalNonEmptyString = z.preprocess(
   z.string().optional()
 );
 
+const envBoolean = (defaultValue: boolean) =>
+  z.preprocess((val) => {
+    if (typeof val === "boolean") return val;
+    if (typeof val === "string") {
+      const normalized = val.trim().toLowerCase();
+      if (normalized === "true" || normalized === "1") return true;
+      if (normalized === "false" || normalized === "0") return false;
+    }
+    return defaultValue;
+  }, z.boolean());
+
 const envSchema = z.object({
   APP_ENV: z.enum(["development", "test", "staging", "production"]).default("development"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -27,9 +38,21 @@ const envSchema = z.object({
   SUPABASE_URL: optionalUrl,
   SUPABASE_SERVICE_ROLE_KEY: optionalNonEmptyString,
   DATABASE_URL: optionalNonEmptyString,
-  LLM_PROVIDER: z.enum(["disabled", "openai", "gemini", "anthropic"]).default("disabled"),
+  LLM_PROVIDER: z.enum(["disabled", "gemini", "groq", "openai", "anthropic"]).default("disabled"),
   LLM_API_KEY: optionalNonEmptyString,
   SARVAM_API_KEY: optionalNonEmptyString,
+  LIVE_MARKET_ENABLED: envBoolean(true),
+  LIVE_MARKET_CACHE_TTL_MS: z.coerce.number().int().positive().default(45_000),
+  YOUTUBE_MONITOR_ENABLED: envBoolean(true),
+  YOUTUBE_POLL_INTERVAL_MS: z.coerce.number().int().min(30_000).default(180_000),
+  WHATSAPP_PROVIDER: z.enum(["dry_run", "twilio", "callmebot", "meta_cloud"]).default("dry_run"),
+  TWILIO_ACCOUNT_SID: optionalNonEmptyString,
+  TWILIO_AUTH_TOKEN: optionalNonEmptyString,
+  TWILIO_WHATSAPP_FROM: z.string().default("whatsapp:+14155238886"),
+  META_WHATSAPP_ACCESS_TOKEN: optionalNonEmptyString,
+  META_WHATSAPP_PHONE_NUMBER_ID: optionalNonEmptyString,
+  SUBSCRIPTION_ENCRYPTION_KEY: optionalNonEmptyString,
+  INTERNAL_CRON_SECRET: optionalNonEmptyString,
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(120),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),

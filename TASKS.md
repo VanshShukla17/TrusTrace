@@ -323,9 +323,68 @@ A checked box means the user has reviewed and accepted the task, not merely that
   - [ ] Confirm every screen shows the correct as-of date and Real/Synthetic status.
 - [ ] Acceptance: the live demo works from preloaded snapshots without relying on a fragile live API and the limitations are stated honestly.
 
+## Phase 4 — Zero-Cost Real-Time Data, Live Stocks Page & Finfluencer YouTube → WhatsApp Alerts
+
+### 4.1 Update blueprint documentation for Phase 4
+
+- [x] Update `PRD.md`, `ARCHITECTURE.md`, `DESIGN.md`, `AGENTS.md`, and `TASKS.md` to document:
+  - [x] Zero-cost real-time Indian market data fetching (Yahoo Finance v8 NSE/BSE + TTL cache + snapshot fallback).
+  - [x] Two new workspace pages: Real-Time Stocks (`/stocks`) and Finfluencers (`/finfluencers`).
+  - [x] Real-time YouTube video monitoring via official Atom RSS / WebSub, bounded free-tier AI Claim Ledger parsing (Gemini / Groq + deterministic fallback), and Output-Guarded automated WhatsApp alerts (`callmebot`, `meta_cloud`, `dry_run`).
+  - [x] Narrow opt-in privacy amendment for encrypted/masked WhatsApp alert subscriptions (while maintaining zero login and zero persistence of user tip uploads, pasted text, or Pause & Plan answers).
+- [x] Acceptance: all five blueprint `.md` files are internally consistent and approved by the user before schema or code changes begin.
+
+### 4.2 Add Supabase migration for YouTube analyses and opt-in WhatsApp subscriptions
+
+- [x] Add `supabase/migrations/20261120000004_realtime_finfluencer_alerts.sql` extending `public.influencer` with YouTube channel metadata and creating `public.youtube_video_analysis`, `public.finfluencer_subscription`, and `public.whatsapp_delivery_log`.
+  - [x] Enable RLS with explicit `deny_public_access_*` policies on every new table.
+  - [x] Enforce idempotency via unique constraints on `video_id`, `(influencer_id, phone_hash)`, and `(subscription_id, video_analysis_id)`.
+  - [x] Apply migration to Supabase and verify zero critical security findings via `get_advisors`.
+- [x] Acceptance: schema applies cleanly and prevents plaintext exposure, duplicate video alerts, and unauthorized public Data API access.
+
+### 4.3 Implement zero-cost real-time Indian market data adapter and live stocks API
+
+- [x] Build `backend/src/integrations/liveMarketFeed.ts` using free Yahoo Finance v8 chart/quote & search endpoints (`.NS`, `.BO`, `^NSEI`, `^BSESN`, `^NSEBANK`) with TTL caching, strict timeouts, Zod validation, and automatic snapshot fallback.
+  - [x] Upgrade `/api/meta/benchmarks`, `/api/stocks/lookup`, `/api/stocks/:ticker/prices`, `/api/stocks/:ticker/checks`, and `/api/report` to fetch live NSE/BSE data when enabled and fall back cleanly to Supabase snapshots or `COULD_NOT_VERIFY`.
+  - [x] Add `/api/live/stocks/quotes`, `/api/live/stocks/search`, and `/api/live/stocks/:ticker/detail` endpoints.
+  - [x] Add unit and integration tests for live quotes, cache hits, timeouts, and snapshot fallback.
+- [x] Acceptance: live quotes and arbitrary NSE/BSE tickers resolve at zero API cost with explicit `LIVE_FEED` vs. `DATED_SNAPSHOT` provenance.
+
+### 4.4 Implement real-time YouTube RSS/WebSub monitor and free-tier bounded AI claim parser
+
+- [x] Build `backend/src/integrations/youtubeMonitor.ts` for official YouTube Atom RSS parsing, WebSub hub verification/push handling, and public caption extraction (with `METADATA_ONLY` fallback).
+  - [x] Build `backend/src/integrations/freeLlmClaimParser.ts` supporting Google Gemini free tier (`gemini-2.5-flash`) and Groq free tier (`llama-3.3-70b-versatile`) strictly for Zod-validated Claim Ledger extraction with source-span verification and deterministic Hinglish fallback.
+  - [x] Wire `freeLlmClaimParser.ts` into `/api/tips/parse` and the YouTube pipeline.
+- [x] Acceptance: new uploads are detected from official YouTube RSS without scraping, and AI extraction cannot emit advice or unverified market facts.
+
+### 4.5 Implement Output-Guarded WhatsApp alert pipeline and subscription APIs
+
+- [x] Build `backend/src/integrations/whatsappNotifier.ts` with AES-256-GCM phone/key encryption, HMAC-SHA256 deduplication hashing, phone masking, and three zero-cost drivers (`callmebot`, `meta_cloud`, `dry_run`).
+  - [x] Build `backend/src/domain/finfluencers/youtubeAlertPipeline.ts` enforcing deterministic SEBI + live market checks + template report builder + mandatory `scanSystemAuthoredText()` Output Guard + verbatim disclaimer on every WhatsApp alert.
+  - [x] Add `/api/finfluencers/*`, `/api/internal/youtube/poll`, and `/api/webhooks/youtube` routes, plus overlap-guarded background polling in `backend/src/server.ts`.
+  - [x] Add adversarial Output Guard tests verifying unsafe candidate WhatsApp messages are blocked (`BLOCKED_BY_GUARD`) and never dispatched.
+- [x] Acceptance: subscribing, syncing new YouTube videos, guarded WhatsApp dispatch/preview, idempotency, and one-click unsubscribe all pass automated tests.
+
+### 4.6 Build frontend Real-Time Stocks page (`/stocks`) and live dashboard benchmarks
+
+- [x] Add `Real-Time Stocks` (`/stocks`, Phosphor `ChartLineUp`) and `Finfluencers` (`/finfluencers`, Phosphor `UsersThree`) to `DashboardLayout.tsx` and lazy-loaded routes in `App.tsx`.
+  - [x] Build `frontend/src/features/stocks/RealTimeStocksPage.tsx` with live indices, universal NSE/BSE search, curated watchlist, neutral day-change styling, Recharts intraday/3M chart, live IST freshness pill, and one-click `"Run 5-Check Tip Autopsy"` handoff to `/analyze`.
+  - [x] Update `DashboardOverviewPage.tsx` to display accurate live vs. dated snapshot provenance on benchmark cards.
+- [x] Acceptance: `/stocks` renders cleanly on mobile and desktop with zero red/green BUY/SELL cues and passes lint/typecheck/tests.
+
+### 4.7 Build frontend Finfluencers page (`/finfluencers`) with YouTube feed and WhatsApp subscribe modal
+
+- [x] Build `frontend/src/features/finfluencers/FinfluencersPage.tsx` with SEBI status filters, creator cards, real-time latest YouTube uploads (`Real · YouTube Official RSS`), expandable AI Claim Ledger & Output-Guarded Facts Card viewer, WhatsApp Alert preview, and opt-in Subscribe modal (explicit consent checkbox, CallMeBot 2-step free setup / Meta Cloud / Preview mode, Test Alert trigger, and 1-click Unsubscribe).
+- [x] Acceptance: users can inspect live analyzed YouTube videos and subscribe/unsubscribe without creating an account or exposing plaintext phone numbers.
+
+### 4.8 End-to-end, Output Guard, and privacy/RLS verification for Phase 4
+
+- [x] Run backend & frontend lint, typecheck, unit/integration tests, production builds, Supabase `get_advisors`, and Playwright E2E flows covering `/stocks` → `/analyze` and `/finfluencers` → sync → subscribe → guarded WhatsApp preview → unsubscribe.
+- [x] Acceptance: all automated suites pass with zero Output Guard leaks, zero RLS advisories, and zero persisted tip/media uploads.
+
 ## Backlog / Deferred Beyond MVP
 
 - [ ] OS-level WhatsApp share-to-app integration, subject to privacy and platform-policy review.
-- [ ] Persistent user accounts or saved analyses (not permitted without a separate product/privacy review).
-- [ ] Real-time social-platform ingestion or scraping (excluded from the product direction).
-- [ ] Broker integration, trading, portfolio tracking, and buy/sell/hold recommendations (excluded from the product direction).
+- [ ] Persistent user accounts, logins, portfolios, or saved tip analysis history (not permitted without a separate product/privacy review).
+- [ ] Social-platform scraping of Telegram, WhatsApp, or Instagram (permanently excluded from the product direction).
+- [ ] Broker integration, trading, portfolio tracking, and buy/sell/hold recommendations (permanently excluded from the product direction).

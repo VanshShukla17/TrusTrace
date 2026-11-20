@@ -18,6 +18,13 @@ import {
   MAX_VIDEO_BYTES,
   runBoundedMultimodalParse,
 } from "../../integrations/multimodalParser.js";
+import { parseClaimLedgerWithFreeAiFallback } from "../../integrations/freeLlmClaimParser.js";
+import {
+  fetchLiveBenchmarkSummaries,
+  fetchLiveHistoricalBars,
+  normalizeIndianYahooSymbol,
+  searchLiveIndianStocks,
+} from "../../integrations/liveMarketFeed.js";
 import { synthesizeGuardedVoiceReadout } from "../../integrations/sarvamVoice.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -66,10 +73,13 @@ const VoiceReadoutSchema = z.object({
 export function createAutopsyRouter(params: {
   config: AppEnv;
   repo: EvidenceRepository;
+  fetchImpl?: typeof fetch;
 }): Router {
-  const { config, repo } = params;
+  const { config, repo, fetchImpl } = params;
   const router = Router();
   const snapshotCache = new SnapshotVersionCache({ maxEntries: 250, defaultTtlMs: 300_000 });
+  const liveMarketActive =
+    config.LIVE_MARKET_ENABLED && (config.NODE_ENV !== "test" || Boolean(fetchImpl));
 
   const providerRateLimit = rateLimit({
     windowMs: config.RATE_LIMIT_WINDOW_MS,
@@ -149,6 +159,31 @@ export function createAutopsyRouter(params: {
         llmProvider: config.LLM_PROVIDER,
       });
 
+      // Optionally enhance Claim Ledger via bounded free-tier AI (Gemini / Groq) when configured
+      if (
+        parsed.extracted_text.trim().length > 0 &&
+        (config.LLM_PROVIDER === "gemini" || config.LLM_PROVIDER === "groq") &&
+        config.LLM_API_KEY
+      ) {
+        const aiEnhanced = await parseClaimLedgerWithFreeAiFallback({
+          sourceText: parsed.extracted_text,
+          catalogue: catalogue.map((s) => ({
+            ticker: s.ticker,
+            company_name: s.company_name,
+            aliases: s.aliases,
+          })),
+          userEnteredStock: body.stock_name,
+          llmProvider: config.LLM_PROVIDER,
+          llmApiKey: config.LLM_API_KEY,
+          fetchImpl,
+        });
+        parsed.claims = aiEnhanced.claims;
+        parsed.parser.version = aiEnhanced.parserVersion;
+        if (aiEnhanced.note) {
+          parsed.parser.note = aiEnhanced.note;
+        }
+      }
+
       res.status(200).json({
         request_id: req.requestId ?? "req_unknown",
         schema_version: "parse-v1",
@@ -191,8 +226,14 @@ export function createAutopsyRouter(params: {
     "/stocks/lookup",
     asyncRoute(async (req, res) => {
       const q = typeof req.query.q === "string" ? req.query.q : "";
-      const matches = await repo.searchStocks(q);
-      const items = await Promise.all(
+      const [matches, liveMatches] = await Promise.all([
+        repo.searchStocks(q),
+        liveMarketActive && q.trim().length >= 2
+          ? searchLiveIndianStocks(q, { enabled: true, fetchImpl })
+          : Promise.resolve([]),
+      ]);
+
+      const localItems = await Promise.all(
         matches.map(async (stock) => {
           const bars = await repo.getPriceHistory(stock.ticker);
           return {
@@ -207,9 +248,25 @@ export function createAutopsyRouter(params: {
         })
       );
 
+      const seenTickers = new Set(localItems.map((i) => i.ticker.toUpperCase()));
+      const mergedItems = [...localItems];
+      for (const live of liveMatches) {
+        if (seenTickers.has(live.ticker.toUpperCase())) continue;
+        seenTickers.add(live.ticker.toUpperCase());
+        mergedItems.push({
+          ticker: live.ticker,
+          company_name: live.company_name,
+          exchange: live.exchange,
+          instrument_type: "EQUITY",
+          underlying_ticker: null,
+          has_price_history: true,
+          latest_price_date: new Date().toISOString().slice(0, 10),
+        });
+      }
+
       res.status(200).json({
         request_id: req.requestId ?? "req_unknown",
-        items,
+        items: mergedItems,
       });
     })
   );
@@ -224,6 +281,42 @@ export function createAutopsyRouter(params: {
 
       const stock = await repo.getStockByTicker(rawTicker);
       if (!stock) {
+        // Attempt real-time NSE/BSE equity lookup via zero-cost Yahoo Finance v8 when live market is active
+        if (liveMarketActive) {
+          const { canonicalTicker } = normalizeIndianYahooSymbol(rawTicker);
+          const liveHistory = await fetchLiveHistoricalBars(canonicalTicker, {
+            enabled: true,
+            range: "3mo",
+            fetchImpl,
+          });
+          if (liveHistory && liveHistory.bars.length > 0) {
+            const filtered = liveHistory.bars.filter((bar) => {
+              if (from && bar.trading_date < from) return false;
+              if (to && bar.trading_date > to) return false;
+              return true;
+            });
+            const latest = filtered[filtered.length - 1] ?? liveHistory.bars[liveHistory.bars.length - 1];
+            res.status(200).json({
+              request_id: req.requestId ?? "req_unknown",
+              ticker: canonicalTicker,
+              company_name: liveHistory.companyName ?? canonicalTicker,
+              instrument_type: "EQUITY",
+              series_scope: "SECURITY",
+              underlying_ticker: null,
+              as_of_date: latest?.trading_date ?? null,
+              source_snapshot_id: latest?.snapshot_id ?? null,
+              source_name: latest?.source_name ?? null,
+              data_label: latest?.data_label ?? "REAL",
+              data_freshness: "LIVE_FEED",
+              series: filtered.map((bar) => ({
+                trading_date: bar.trading_date,
+                close: Number(bar.close),
+                volume: bar.volume,
+              })),
+            });
+            return;
+          }
+        }
         throw new AppError({
           code: "DATA_NOT_AVAILABLE",
           message: "No matching stock or instrument was found in the dated catalogue.",
@@ -383,7 +476,7 @@ export function createAutopsyRouter(params: {
           : null;
 
       const instrumentType = stock?.instrument_type ?? "EQUITY";
-      const [bars, stockInfo, surveillance, benchmarks] = stock
+      const [initialBars, initialStockInfo, surveillance, benchmarks] = stock
         ? await Promise.all([
             repo.getPriceHistory(stock.ticker),
             repo.getStockInfo(stock.ticker),
@@ -391,6 +484,31 @@ export function createAutopsyRouter(params: {
             repo.listBenchmarks(),
           ])
         : [[], null, [], await repo.listBenchmarks()];
+      let bars = initialBars;
+      let stockInfo = initialStockInfo;
+
+      let resolvedCompanyName = stock?.company_name ?? rawTicker;
+      if (!stock && liveMarketActive && instrumentType === "EQUITY") {
+        const liveHistory = await fetchLiveHistoricalBars(rawTicker, {
+          enabled: true,
+          range: "3mo",
+          fetchImpl,
+        });
+        if (liveHistory && liveHistory.bars.length > 0) {
+          bars = liveHistory.bars;
+          if (liveHistory.stockInfo) stockInfo = liveHistory.stockInfo;
+          if (liveHistory.companyName) resolvedCompanyName = liveHistory.companyName;
+        }
+      }
+
+      const effectiveAsOf =
+        typeof req.query.asOf === "string" && req.query.asOf
+          ? asOf
+          : bars[bars.length - 1]?.trading_date ?? asOf;
+      const effectiveTipDate =
+        typeof req.query.tipDate === "string" && req.query.tipDate
+          ? tipDate
+          : bars[bars.length - 1]?.trading_date ?? tipDate;
 
       const checks = computeAllMarketChecks({
         instrumentType,
@@ -398,8 +516,8 @@ export function createAutopsyRouter(params: {
         stockInfo,
         surveillanceEntries: surveillance,
         circuitBand: stockInfo?.circuit_band ?? stock?.circuit_band ?? null,
-        asOfDate: asOf,
-        tipDate,
+        asOfDate: effectiveAsOf,
+        tipDate: effectiveTipDate,
         config: METHODOLOGY_CONFIG_V1,
       });
 
@@ -428,12 +546,12 @@ export function createAutopsyRouter(params: {
 
       res.status(200).json({
         request_id: req.requestId ?? "req_unknown",
-        ticker: stock?.ticker ?? rawTicker.toUpperCase(),
-        company_name: stock?.company_name ?? rawTicker,
+        ticker: stock?.ticker ?? normalizeIndianYahooSymbol(rawTicker).canonicalTicker,
+        company_name: resolvedCompanyName,
         instrument_type: instrumentType,
         underlying_ticker: stock?.underlying_ticker ?? null,
-        as_of_date: asOf,
-        tip_date: tipDate,
+        as_of_date: effectiveAsOf,
+        tip_date: effectiveTipDate,
         methodology_version: METHODOLOGY_CONFIG_V1.version,
         checks,
         track_record: trackRecord,
@@ -487,13 +605,29 @@ export function createAutopsyRouter(params: {
       const disclosure = classifyDisclosure(originalText);
 
       const instrumentType = stock?.instrument_type ?? "EQUITY";
-      const [bars, stockInfo, surveillance] = stock
+      const [initialReportBars, initialReportStockInfo, surveillance] = stock
         ? await Promise.all([
             repo.getPriceHistory(stock.ticker),
             repo.getStockInfo(stock.ticker),
             repo.getSurveillance(stock.ticker),
           ])
         : [[], null, []];
+      let bars = initialReportBars;
+      let stockInfo = initialReportStockInfo;
+
+      let reportCompanyName = stock?.company_name ?? body.ticker;
+      if (!stock && liveMarketActive && instrumentType === "EQUITY") {
+        const liveHistory = await fetchLiveHistoricalBars(body.ticker, {
+          enabled: true,
+          range: "3mo",
+          fetchImpl,
+        });
+        if (liveHistory && liveHistory.bars.length > 0) {
+          bars = liveHistory.bars;
+          if (liveHistory.stockInfo) stockInfo = liveHistory.stockInfo;
+          if (liveHistory.companyName) reportCompanyName = liveHistory.companyName;
+        }
+      }
 
       const marketChecks = computeAllMarketChecks({
         instrumentType,
@@ -501,8 +635,8 @@ export function createAutopsyRouter(params: {
         stockInfo,
         surveillanceEntries: surveillance,
         circuitBand: stockInfo?.circuit_band ?? stock?.circuit_band ?? null,
-        asOfDate,
-        tipDate,
+        asOfDate: body.as_of_date ?? bars[bars.length - 1]?.trading_date ?? asOfDate,
+        tipDate: body.tip_date ?? bars[bars.length - 1]?.trading_date ?? tipDate,
       });
 
       const creatorTips = matchedCreator
@@ -527,7 +661,7 @@ export function createAutopsyRouter(params: {
       });
 
       const report = buildGuardedFactsCard({
-        instrumentDisplayName: stock?.company_name ?? body.ticker,
+        instrumentDisplayName: reportCompanyName,
         claims: parsedClaims,
         hypeFlags: hype.flags,
         disclosure,
@@ -559,6 +693,23 @@ export function createAutopsyRouter(params: {
   router.get(
     "/meta/benchmarks",
     asyncRoute(async (req, res) => {
+      if (liveMarketActive) {
+        const live = await fetchLiveBenchmarkSummaries({
+          enabled: true,
+          cacheTtlMs: config.LIVE_MARKET_CACHE_TTL_MS,
+          fetchImpl,
+        });
+        if (live && live.some((b) => b.status === "AVAILABLE")) {
+          res.status(200).json({
+            request_id: req.requestId ?? "req_unknown",
+            fetched_at: new Date().toISOString(),
+            data_freshness: "LIVE_FEED",
+            benchmarks: live,
+          });
+          return;
+        }
+      }
+
       const benchmarks = await repo.listBenchmarks();
       const summarize = (key: "NIFTY_50" | "SENSEX" | "BANKNIFTY", label: string) => {
         const series = benchmarks[key];
@@ -573,6 +724,8 @@ export function createAutopsyRouter(params: {
             change: null,
             change_percent: null,
             as_of_date: null,
+            fetched_at: null,
+            data_freshness: null,
             data_label: null,
             source_name: null,
             sparkline: [] as Array<{ date: string; close: number }>,
@@ -588,6 +741,8 @@ export function createAutopsyRouter(params: {
           change,
           change_percent: changePercent,
           as_of_date: latest.trading_date,
+          fetched_at: null,
+          data_freshness: "DATED_SNAPSHOT" as const,
           data_label: latest.data_label,
           source_name: latest.source_name,
           sparkline: series.slice(-15).map((b) => ({ date: b.trading_date, close: b.close })),
@@ -596,6 +751,8 @@ export function createAutopsyRouter(params: {
 
       res.status(200).json({
         request_id: req.requestId ?? "req_unknown",
+        fetched_at: null,
+        data_freshness: "DATED_SNAPSHOT",
         benchmarks: [
           summarize("NIFTY_50", "NIFTY 50"),
           summarize("SENSEX", "SENSEX"),

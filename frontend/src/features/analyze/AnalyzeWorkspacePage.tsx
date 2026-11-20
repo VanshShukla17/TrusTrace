@@ -39,6 +39,8 @@ import { useAutopsy } from "../workflow/AutopsyContext";
 interface AnalyzeLocationState {
   prefillQuery?: string;
   selectedDemoId?: string;
+  prefillStockName?: string;
+  prefillInfluencerName?: string;
 }
 
 function extractQuickClaims(text: string) {
@@ -177,7 +179,7 @@ export function AnalyzeWorkspacePage() {
     queryFn: () => lookupStocks(state.stockName),
   });
 
-  // Apply one-time navigation state prefill (from Dashboard quick bar or Demo Corpus click)
+  // Apply one-time navigation state prefill (from Dashboard, Real-Time Stocks, Finfluencers, or Demo Corpus)
   useEffect(() => {
     const locState = (location.state as AnalyzeLocationState | null) ?? null;
     if (!locState) return;
@@ -186,16 +188,28 @@ export function AnalyzeWorkspacePage() {
       if (found && state.selectedDemoCaseId !== found.id) {
         loadDemoCase(found);
       }
-    } else if (locState.prefillQuery && !state.rawText) {
-      setRawText(locState.prefillQuery);
+    } else {
+      if (locState.prefillStockName && !state.stockName) {
+        setStockName(locState.prefillStockName);
+      }
+      if (locState.prefillInfluencerName && !state.influencerName) {
+        setInfluencerName(locState.prefillInfluencerName);
+      }
+      if (locState.prefillQuery && !state.rawText) {
+        setRawText(locState.prefillQuery);
+      }
     }
   }, [
     demoCasesQuery.data,
     loadDemoCase,
     location.state,
+    setInfluencerName,
     setRawText,
+    setStockName,
+    state.influencerName,
     state.rawText,
     state.selectedDemoCaseId,
+    state.stockName,
   ]);
 
   const effectiveTicker = useMemo(() => {

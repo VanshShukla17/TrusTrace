@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import {
   BookOpenText,
+  ChartLineUp,
   FilmStrip,
   List,
   LockSimple,
   MagnifyingGlass,
   ShieldCheck,
   SquaresFour,
+  UsersThree,
   X,
 } from "@phosphor-icons/react";
 import DashBoardBackground from "../components/DashBoardBackground";
@@ -18,6 +20,8 @@ import { CORE_PRODUCT_RULE } from "../lib/constants";
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: SquaresFour, end: true },
   { to: "/analyze", label: "New Analysis", icon: MagnifyingGlass, end: false },
+  { to: "/stocks", label: "Real-Time Stocks", icon: ChartLineUp, end: false },
+  { to: "/finfluencers", label: "Finfluencers", icon: UsersThree, end: false },
   { to: "/corpus", label: "Demo Corpus", icon: FilmStrip, end: false },
   { to: "/how-it-works", label: "How Checks Work", icon: BookOpenText, end: false },
 ] as const;
@@ -126,13 +130,13 @@ export function DashboardLayout() {
                 className="shrink-0 text-[#4A7C64]"
                 aria-hidden="true"
               />
-              <span>No login · No personal data</span>
+              <span>No login · Opt-in alerts only</span>
             </div>
 
             <div className="rounded-xl border border-[rgba(22,26,24,0.08)] bg-white/60 px-3 py-2 text-[11px] leading-relaxed text-[#6E7771]">
               <p className="m-0 font-semibold text-[#4A524D]">Provenance Legend</p>
               <p className="mt-0.5 mb-0">
-                <strong className="text-[#1F4D3A]">Real</strong> = NSE/BSE or SEBI snapshot.{" "}
+                <strong className="text-[#1F4D3A]">Real · Live / Snapshot</strong> = NSE/BSE, SEBI, or YouTube RSS.{" "}
                 <strong className="text-[#4A524D]">Mixed/Demo</strong> = curated tips.
               </p>
             </div>

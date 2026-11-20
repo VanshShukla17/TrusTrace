@@ -6,7 +6,13 @@ import { env as defaultEnv, type AppEnv } from "./core/env.js";
 import { buildErrorEnvelope, errorHandler, notFoundHandler } from "./core/errors.js";
 import { requestIdMiddleware } from "./api/middleware/requestId.js";
 import { createAutopsyRouter } from "./api/routes/autopsy.js";
+import { createFinfluencersRouter } from "./api/routes/finfluencers.js";
 import { createHealthRouter } from "./api/routes/health.js";
+import { createLiveStocksRouter } from "./api/routes/liveStocks.js";
+import {
+  createFinfluencerAlertRepository,
+  type FinfluencerAlertRepository,
+} from "./db/finfluencerRepository.js";
 import { createEvidenceRepository, type EvidenceRepository } from "./db/repository.js";
 import type { DatabaseProbeResult } from "./db/supabase.js";
 
@@ -23,11 +29,14 @@ export interface CreateAppOptions {
   config?: AppEnv;
   probeDb?: (config: AppEnv) => Promise<DatabaseProbeResult>;
   repo?: EvidenceRepository;
+  alertRepo?: FinfluencerAlertRepository;
+  fetchImpl?: typeof fetch;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const config = options.config ?? defaultEnv;
   const repo = options.repo ?? createEvidenceRepository(config);
+  const alertRepo = options.alertRepo ?? createFinfluencerAlertRepository(config);
   const app = express();
 
   app.disable("x-powered-by");
@@ -43,7 +52,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
         callback(null, false);
       },
       methods: ["GET", "POST", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "X-Request-Id"],
+      allowedHeaders: ["Content-Type", "X-Request-Id", "Authorization"],
     })
   );
 
@@ -73,7 +82,17 @@ export function createApp(options: CreateAppOptions = {}): Express {
   );
 
   app.use("/api", createHealthRouter({ config, probeDb: options.probeDb }));
-  app.use("/api", createAutopsyRouter({ config, repo }));
+  app.use("/api", createAutopsyRouter({ config, repo, fetchImpl: options.fetchImpl }));
+  app.use("/api", createLiveStocksRouter({ config, repo, fetchImpl: options.fetchImpl }));
+  app.use(
+    "/api",
+    createFinfluencersRouter({
+      config,
+      evidenceRepo: repo,
+      alertRepo,
+      fetchImpl: options.fetchImpl,
+    })
+  );
 
   app.use(notFoundHandler);
   app.use(errorHandler);

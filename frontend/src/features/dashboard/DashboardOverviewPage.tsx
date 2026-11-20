@@ -4,10 +4,12 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   CaretRight,
+  ChartLineUp,
   Database,
   FilmStrip,
   Image as ImageIcon,
   MagnifyingGlass,
+  UsersThree,
 } from "@phosphor-icons/react";
 import { Button } from "../../components/ui/Button";
 import { GlassCard } from "../../components/ui/GlassCard";
@@ -99,6 +101,8 @@ export function DashboardOverviewPage() {
 
   const latestAsOf = benchmarkList.find((b) => b.as_of_date)?.as_of_date ?? undefined;
   const latestLabel = benchmarkList.find((b) => b.data_label)?.data_label ?? null;
+  const latestFetchedAt = benchmarkList.find((b) => b.fetched_at)?.fetched_at ?? null;
+  const isLiveFeed = benchmarkList.some((b) => b.data_freshness === "LIVE_FEED");
 
   return (
     <div className="space-y-4">
@@ -128,15 +132,19 @@ export function DashboardOverviewPage() {
           </Button>
         </form>
 
-        {/* Compliant provenance badge: NEVER "Live Market Data" */}
+        {/* Accurate provenance badge: Live Feed when fetched live, Dated Snapshot on fallback */}
         <div className="glass-card-subtle flex items-center gap-2.5 rounded-2xl px-3.5 py-2 sm:self-start xl:self-auto">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#4A7C64]" aria-hidden="true" />
           <div className="leading-tight">
             <p className="m-0 text-[12px] font-semibold text-[#161A18]">
-              Dated Market Snapshots · NSE / BSE
+              {isLiveFeed ? "Real · Live Feed · NSE / BSE" : "Dated Market Snapshots · NSE / BSE"}
             </p>
             <p className="tabular-nums-lining m-0 text-[11px] text-[#6E7771]">
-              {latestAsOf ? `Snapshot as of ${latestAsOf}` : "Could not verify snapshot date"}
+              {isLiveFeed && latestFetchedAt
+                ? `Yahoo Finance NSE · As of ${latestAsOf ?? "today"}`
+                : latestAsOf
+                  ? `Snapshot as of ${latestAsOf}`
+                  : "Could not verify snapshot date"}
             </p>
           </div>
         </div>
@@ -152,7 +160,14 @@ export function DashboardOverviewPage() {
             Market Overview
           </h1>
           <ProvenancePill
-            label={latestLabel ? mapDataLabel(latestLabel) : "Synthetic / Demo"}
+            label={
+              isLiveFeed
+                ? "Real · Live Feed"
+                : latestLabel
+                  ? mapDataLabel(latestLabel)
+                  : "Synthetic / Demo"
+            }
+            fetchedAtIso={isLiveFeed ? latestFetchedAt : null}
             asOfDate={latestAsOf}
           />
         </div>
@@ -204,6 +219,61 @@ export function DashboardOverviewPage() {
             );
           })}
         </div>
+      </section>
+
+      {/* Phase 4 Real-Time Quick Access Band */}
+      <section aria-label="Real-time workspaces" className="grid gap-3 md:grid-cols-2">
+        <GlassCard compact className="flex items-center justify-between gap-3 !p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E6F2EC] text-[#1F4D3A]">
+              <ChartLineUp size={20} weight="duotone" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="m-0 text-[14.5px] font-semibold text-[#161A18]">
+                Real-Time NSE / BSE Stocks
+              </h2>
+              <p className="mt-0.5 mb-0 text-[12px] text-[#4A524D]">
+                Search any Indian equity live, inspect volume &amp; ranges, and launch a 5-check
+                Tip Autopsy in one click.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => navigate("/stocks")}
+            className="h-9 shrink-0 px-3.5 text-[12.5px]"
+          >
+            <span>Open</span>
+            <CaretRight size={14} weight="bold" aria-hidden="true" />
+          </Button>
+        </GlassCard>
+
+        <GlassCard compact className="flex items-center justify-between gap-3 !p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E6F2EC] text-[#1F4D3A]">
+              <UsersThree size={20} weight="duotone" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="m-0 text-[14.5px] font-semibold text-[#161A18]">
+                Finfluencers &amp; WhatsApp Alerts
+              </h2>
+              <p className="mt-0.5 mb-0 text-[12px] text-[#4A524D]">
+                Track new YouTube uploads via official RSS and receive Output-Guarded AI evidence
+                alerts on WhatsApp.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => navigate("/finfluencers")}
+            className="h-9 shrink-0 px-3.5 text-[12.5px]"
+          >
+            <span>Explore</span>
+            <CaretRight size={14} weight="bold" aria-hidden="true" />
+          </Button>
+        </GlassCard>
       </section>
 
       {/* Curated Demo & In-Session Analyses Table */}

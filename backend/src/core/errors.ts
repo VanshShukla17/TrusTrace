@@ -4,6 +4,7 @@ import { logError } from "./logger.js";
 
 export type ErrorCode =
   | "VALIDATION_ERROR"
+  | "UNAUTHORIZED"
   | "NOT_FOUND"
   | "DATA_NOT_AVAILABLE"
   | "UNSUPPORTED_MEDIA_TYPE"

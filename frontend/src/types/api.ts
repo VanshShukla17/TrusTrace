@@ -226,9 +226,158 @@ export interface BenchmarkSummary {
   change: number | null;
   change_percent: number | null;
   as_of_date: string | null;
+  fetched_at?: string | null;
+  data_freshness?: "LIVE_FEED" | "DATED_SNAPSHOT" | null;
   data_label: DataLabel | null;
   source_name: string | null;
   sparkline: Array<{ date: string; close: number }>;
+}
+
+export interface LiveStockQuote {
+  ticker: string;
+  yahoo_symbol: string;
+  company_name: string;
+  exchange: "NSE" | "BSE";
+  sector: string | null;
+  currency: string;
+  price: number | null;
+  previous_close: number | null;
+  change: number | null;
+  change_percent: number | null;
+  day_high: number | null;
+  day_low: number | null;
+  fifty_two_week_high: number | null;
+  fifty_two_week_low: number | null;
+  volume: number | null;
+  market_cap_cr: number | null;
+  size_band: "LARGE" | "MID" | "SMALL" | "MICRO" | null;
+  as_of_date: string;
+  fetched_at: string;
+  data_freshness: "LIVE_FEED" | "DATED_SNAPSHOT";
+  data_label: "REAL" | "SYNTHETIC";
+  source_name: string;
+  delay_note: string;
+  sparkline: Array<{ date: string; close: number }>;
+}
+
+export interface LiveQuotesResponse {
+  request_id: string;
+  fetched_at: string;
+  feed_status: "LIVE_FEED" | "SNAPSHOT_FALLBACK" | "COULD_NOT_VERIFY";
+  benchmarks: BenchmarkSummary[];
+  quotes: LiveStockQuote[];
+}
+
+export interface LiveStockSearchItem {
+  ticker: string;
+  yahoo_symbol: string;
+  company_name: string;
+  exchange: "NSE" | "BSE";
+  instrument_type: InstrumentType;
+  sector: string | null;
+  source: "LIVE_SEARCH" | "CATALOGUE" | "WATCHLIST";
+}
+
+export interface LiveStockDetailResponse {
+  request_id: string;
+  quote: LiveStockQuote;
+  range: "1d" | "1mo" | "3mo" | "6mo";
+  series: Array<{
+    label: string;
+    trading_date: string;
+    close: number;
+    volume: number | null;
+  }>;
+  avg_daily_traded_value_cr: number | null;
+}
+
+export type WhatsAppProviderKind = "twilio" | "callmebot" | "meta_cloud" | "dry_run";
+
+export interface VideoAnalysisItem {
+  id: string;
+  influencer_id: string;
+  video_id: string;
+  title: string;
+  video_url: string;
+  thumbnail_url: string | null;
+  published_at: string;
+  transcript_source: "CAPTIONS" | "METADATA_ONLY";
+  detected_ticker: string | null;
+  claim_ledger_json: ClaimLedger;
+  hype_flags_json: HypeFlag[];
+  disclosure_grade: DisclosureGrade;
+  guarded_report_json: GuardedReportResponse;
+  guard_status: "PASSED" | "BLOCKED_FALLBACK";
+  whatsapp_summary_text: string;
+  analyzed_at: string;
+}
+
+export interface FinfluencerDirectoryItem {
+  id: string;
+  name: string;
+  handle: string | null;
+  aliases: string[];
+  avatar_initials: string;
+  bio_summary: string | null;
+  youtube_channel_id: string | null;
+  youtube_handle: string | null;
+  youtube_channel_url: string | null;
+  has_realtime_youtube_feed: boolean;
+  sebi_status: SebiLookupStatus;
+  sebi_registration_no: string | null;
+  sebi_category: string | null;
+  sebi_snapshot_date: string | null;
+  sebi_explanation: string;
+  active_subscriber_count: number;
+  latest_videos: VideoAnalysisItem[];
+}
+
+export interface FinfluencersResponse {
+  request_id: string;
+  fetched_at: string;
+  twilio_whatsapp_configured?: boolean;
+  whatsapp_meta_configured: boolean;
+  llm_provider: string;
+  items: FinfluencerDirectoryItem[];
+}
+
+export interface SubscriptionSummary {
+  id: string;
+  influencer_id: string;
+  influencer_name: string;
+  phone_masked: string;
+  provider: WhatsAppProviderKind;
+  is_active: boolean;
+  consent_given_at: string;
+  unsubscribe_token: string;
+}
+
+export interface SubscribeResponse {
+  request_id: string;
+  subscription: SubscriptionSummary;
+  message: string;
+}
+
+export interface TestAlertResponse {
+  request_id: string;
+  video_id: string;
+  video_title: string;
+  delivery_status: "SENT" | "DRY_RUN_PREVIEW" | "FAILED" | "BLOCKED_BY_GUARD";
+  provider: WhatsAppProviderKind;
+  phone_masked: string;
+  message_preview: string;
+  wa_me_url: string | null;
+  error_code: string | null;
+}
+
+export interface SyncFinfluencerResponse {
+  request_id: string;
+  influencer_id: string;
+  influencer_name: string;
+  fetched_from_rss: number;
+  newly_analyzed: number;
+  alerts_dispatched: number;
+  videos: VideoAnalysisItem[];
 }
 
 export interface DemoCaseMeta {

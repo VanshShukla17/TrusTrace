@@ -51,10 +51,10 @@ A checkbox is complete only after the user reviews and accepts the result. Do no
 
 ### 3.3 Output Guard is mandatory
 
-- Route every system-authored facts-card sentence through the template allowlist and Output Guard.
+- Route every system-authored facts-card sentence **and every automated WhatsApp alert message** through the template allowlist and Output Guard.
 - Scan for prohibited advice terms and their variants, including `buy`, `sell`, `hold`, `avoid`, `target`, `undervalued`, `overvalued`, `will rise`, and `will fall`.
-- Add adversarial tests for paraphrases, conditional recommendations, euphemisms, and Hinglish equivalents.
-- If unsafe output is detected, block the candidate and return the fixed safe fallback.
+- Add adversarial tests for paraphrases, conditional recommendations, euphemisms, and Hinglish equivalents (covering both web Facts Cards and WhatsApp alert payloads).
+- If unsafe output is detected, block the candidate and return the fixed safe fallback (and never dispatch an unsafe WhatsApp alert).
 - Never weaken, bypass, or disable the guard to make a demo pass.
 - Keep original creator text visibly quoted, escaped, and separate from system-authored language.
 
@@ -68,21 +68,22 @@ A checkbox is complete only after the user reviews and accepts the result. Do no
 
 ### 3.5 Data provenance
 
-- Every evidence record must carry a source, as-of date, snapshot identifier, and Real/Synthetic/Mixed label.
-- Synthetic demo data must never be shown as real market data.
-- Never generate plausible-looking market values to fill a missing dataset.
-- Missing, stale, incomplete, or misaligned data must produce `Could not verify` with a clear reason.
+- Every evidence record must carry a source, fetch timestamp or as-of date, snapshot identifier (when snapshot-backed), and Real (`Live Feed` vs. `Dated Snapshot`), Synthetic, or Mixed label.
+- Synthetic demo data must never be shown as real market data, and dated snapshots must never be mislabelled as live feeds.
+- Never generate plausible-looking market values to fill a missing or rate-limited live dataset.
+- Missing, stale, incomplete, or misaligned data must produce `Could not verify` (or an explicit fallback to a clearly labelled dated snapshot) with a clear reason.
 - Keep imported snapshots immutable; corrections require a new snapshot/version.
-- Do not scrape Telegram, WhatsApp, Instagram, YouTube, or other social platforms.
+- Do not scrape Telegram, WhatsApp, Instagram, or unauthorized social endpoints. Real-time YouTube monitoring is permitted **only** via YouTube's official public Atom RSS feeds, official WebSub push, and public caption tracks.
 
 ### 3.6 Privacy
 
-- Version 1 has no end-user login, accounts, profiles, portfolios, or saved analysis history.
-- Never persist user-uploaded photos or videos, pasted tip text, Pause & Plan answers, or personal user data.
-- Do not log request bodies or file payloads that contain tip media or text. Redact user content from exception messages, traces, analytics, and provider errors.
+- Tip Autopsy has no end-user login, accounts, profiles, portfolios, or saved tip analysis history.
+- Never persist user-uploaded photos or videos, pasted tip text, or Pause & Plan answers.
+- **Approved Phase 4 Narrow Exception (Opt-In WhatsApp Subscriptions):** Storing subscriber alert preferences in `finfluencer_subscription` is permitted ONLY with explicit opt-in consent, server-side AES-256-GCM encryption of phone numbers and provider API keys, masked display numbers, strict Supabase RLS deny-public policies, and one-click unsubscribe. Never log plaintext phone numbers, provider keys, or tip payloads.
+- Do not log request bodies or file payloads that contain tip media, pasted text, or subscriber credentials. Redact user content from exception messages, traces, analytics, and provider errors.
 - Do not add session replay or analytics that capture form contents or media uploads.
 - Do not store user text or media in localStorage or IndexedDB. Keep it in active client memory only (revoking object URLs) and clear it on reset.
-- Do not add a database table for users, uploaded media, or pasted tips without an explicit, separately reviewed product/privacy change.
+- Do not add any additional user-data table without an explicit, separately reviewed product/privacy change.
 
 ## 4. Project Commands
 

@@ -37,6 +37,11 @@ export interface InfluencerRecord {
   aliases: string[];
   normalized_name: string;
   sebi_registration_no: string | null;
+  youtube_channel_id?: string | null;
+  youtube_handle?: string | null;
+  youtube_channel_url?: string | null;
+  avatar_initials?: string | null;
+  bio_summary?: string | null;
 }
 
 export interface StockRecord {
@@ -111,6 +116,8 @@ export const INFLUENCER_IDS = {
   RAKESH_BANSAL: "22222222-2222-4222-8222-222222222204",
   VIVEK_RANA: "22222222-2222-4222-8222-222222222205",
   DEMO_HIGH_VOLUME_CREATOR: "22222222-2222-4222-8222-222222222206",
+  CA_RACHANA_RANADE: "22222222-2222-4222-8222-222222222207",
+  PRANJAL_KAMRA: "22222222-2222-4222-8222-222222222208",
 } as const;
 
 /** Generates weekday trading dates between 2026-09-14 and 2026-11-19 (49 trading sessions). */
@@ -148,12 +155,59 @@ export function buildDemoDataset(): DemoDataset {
 
   const influencers: InfluencerRecord[] = [
     {
+      id: INFLUENCER_IDS.RAKESH_BANSAL,
+      name: "Rakesh Bansal",
+      handle: "@iamrakeshbansal",
+      aliases: ["Dr Rakesh Bansal", "Rakesh Bansal Ventures"],
+      normalized_name: normalizeIdentifier("Rakesh Bansal"),
+      sebi_registration_no: "INH100008984",
+      youtube_channel_id: "UC6HlGuJZ0_M_rSgm0hoRhDQ",
+      youtube_handle: "@iamrakeshbansal",
+      youtube_channel_url: "https://www.youtube.com/channel/UC6HlGuJZ0_M_rSgm0hoRhDQ",
+      avatar_initials: "RB",
+      bio_summary:
+        "SEBI-registered Research Analyst in curated snapshot; publishes Hindi/Hinglish equity & chart breakdowns on YouTube.",
+    },
+    {
+      id: INFLUENCER_IDS.CA_RACHANA_RANADE,
+      name: "CA Rachana Ranade",
+      handle: "@CARachanaRanade",
+      aliases: ["Rachana Ranade", "CA Rachana Phadke Ranade"],
+      normalized_name: normalizeIdentifier("CA Rachana Ranade"),
+      sebi_registration_no: null,
+      youtube_channel_id: "UCe3qdG0A_gr-sEdat5y2twQ",
+      youtube_handle: "@CARachanaRanade",
+      youtube_channel_url: "https://www.youtube.com/channel/UCe3qdG0A_gr-sEdat5y2twQ",
+      avatar_initials: "RR",
+      bio_summary:
+        "Indian retail finance educator covering IPOs, stock fundamentals, and personal finance on YouTube.",
+    },
+    {
+      id: INFLUENCER_IDS.PRANJAL_KAMRA,
+      name: "Pranjal Kamra",
+      handle: "@pranjalkamra",
+      aliases: ["Finology", "Finology Ventures"],
+      normalized_name: normalizeIdentifier("Pranjal Kamra"),
+      sebi_registration_no: null,
+      youtube_channel_id: "UCwAdQUuPT6laN-AQR17fe1g",
+      youtube_handle: "@pranjalkamra",
+      youtube_channel_url: "https://www.youtube.com/channel/UCwAdQUuPT6laN-AQR17fe1g",
+      avatar_initials: "PK",
+      bio_summary:
+        "Indian equity investing and mutual fund educator publishing market explainers on YouTube.",
+    },
+    {
       id: INFLUENCER_IDS.ASHISH_KYAL,
       name: "Ashish Kyal",
       handle: "@ashishkyal_demo",
       aliases: ["Waves Strategy"],
       normalized_name: normalizeIdentifier("Ashish Kyal"),
       sebi_registration_no: null,
+      youtube_channel_id: null,
+      youtube_handle: "@kyalashish",
+      youtube_channel_url: "https://www.youtube.com/@kyalashish",
+      avatar_initials: "AK",
+      bio_summary: "Technical analysis and index derivatives commentary (Waves Strategy).",
     },
     {
       id: INFLUENCER_IDS.CHINMAY_DUDHANE,
@@ -162,6 +216,11 @@ export function buildDemoDataset(): DemoDataset {
       aliases: ["Trading cafe India", "Trading Cafe India"],
       normalized_name: normalizeIdentifier("Chinmay Dudhane"),
       sebi_registration_no: "INH000012948",
+      youtube_channel_id: null,
+      youtube_handle: "@tradingcafeindia",
+      youtube_channel_url: "https://www.youtube.com/@tradingcafeindia",
+      avatar_initials: "CD",
+      bio_summary: "Founder of Trading Cafe India; options and market structure content.",
     },
     {
       id: INFLUENCER_IDS.HARSH_BHAGAT,
@@ -170,14 +229,11 @@ export function buildDemoDataset(): DemoDataset {
       aliases: ["Harsh Bhagat Options"],
       normalized_name: normalizeIdentifier("Harsh Bhagat"),
       sebi_registration_no: null,
-    },
-    {
-      id: INFLUENCER_IDS.RAKESH_BANSAL,
-      name: "Rakesh Bansal",
-      handle: "@iamrakeshbansal",
-      aliases: ["Dr Rakesh Bansal", "Rakesh Bansal Ventures"],
-      normalized_name: normalizeIdentifier("Rakesh Bansal"),
-      sebi_registration_no: "INH100008984",
+      youtube_channel_id: null,
+      youtube_handle: null,
+      youtube_channel_url: null,
+      avatar_initials: "HB",
+      bio_summary: "Index options trading commentary.",
     },
     {
       id: INFLUENCER_IDS.VIVEK_RANA,
@@ -186,6 +242,11 @@ export function buildDemoDataset(): DemoDataset {
       aliases: [],
       normalized_name: normalizeIdentifier("Vivek Rana"),
       sebi_registration_no: null,
+      youtube_channel_id: null,
+      youtube_handle: null,
+      youtube_channel_url: null,
+      avatar_initials: "VR",
+      bio_summary: "Short-form equity commentary clips.",
     },
     {
       id: INFLUENCER_IDS.DEMO_HIGH_VOLUME_CREATOR,
@@ -194,6 +255,12 @@ export function buildDemoDataset(): DemoDataset {
       aliases: ["Aarav FinNotes"],
       normalized_name: normalizeIdentifier("Aarav FinNotes (Synthetic Demo)"),
       sebi_registration_no: null,
+      youtube_channel_id: null,
+      youtube_handle: null,
+      youtube_channel_url: null,
+      avatar_initials: "AF",
+      bio_summary:
+        "Synthetic demo creator seeded exclusively for Beta-Binomial track-record evaluation.",
     },
   ];
 
