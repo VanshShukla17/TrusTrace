@@ -1,8 +1,6 @@
 import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Play } from "@phosphor-icons/react";
 import { Button } from "../../components/ui/Button";
-import { ProvenancePill } from "../../components/ui/ProvenancePill";
 import { CORE_PRODUCT_RULE, MANDATORY_DISCLAIMER } from "../../lib/constants";
 import {
   HeroStockBackdrop,
@@ -18,19 +16,12 @@ interface HeroCreatorCard {
   overlayCaption?: string;
   tiltClass?: string;
   animatedPortrait?: boolean;
+  isGif?: boolean;
   objectPositionClass: string;
   sampleLabel: string;
 }
 
 const HERO_CREATOR_CARDS: HeroCreatorCard[] = [
-  {
-    id: "creator-multibagger",
-    src: "/media/hero/claude.gif",
-    alt: "Illustrative finfluencer clip quoting 10x multibagger claim",
-    hasEmbeddedCaption: true,
-    objectPositionClass: "object-center",
-    sampleLabel: "Hype claim: 10x multibagger",
-  },
   {
     id: "creator-2x-soon",
     src: "/media/hero/creator_2x_soon.jpg",
@@ -38,16 +29,27 @@ const HERO_CREATOR_CARDS: HeroCreatorCard[] = [
     hasEmbeddedCaption: false,
     overlayCaption: "This stock will 2x soon! 🔥",
     tiltClass: "-rotate-[4deg]",
-    animatedPortrait: true,
-    objectPositionClass: "object-[50%_20%]",
+    animatedPortrait: false,
+    isGif: false,
+    objectPositionClass: "object-[50%_25%]",
     sampleLabel: "Hype claim: 2x return promise",
+  },
+  {
+    id: "creator-multibagger",
+    src: "/media/hero/claude.gif",
+    alt: "Illustrative finfluencer clip quoting 10x multibagger claim",
+    hasEmbeddedCaption: true,
+    isGif: true,
+    objectPositionClass: "object-[50%_18%]",
+    sampleLabel: "Hype claim: 10x multibagger",
   },
   {
     id: "creator-buy-now",
     src: "/media/hero/Gemini_Generated_Gif_rizow1rizow1rizo-watermark-removed.gif",
     alt: "Illustrative finfluencer clip quoting Buy now urgency prompt",
     hasEmbeddedCaption: true,
-    objectPositionClass: "object-[50%_46%]",
+    isGif: true,
+    objectPositionClass: "object-[50%_18%]",
     sampleLabel: "Urgency prompt: Buy now?",
   },
   {
@@ -55,7 +57,8 @@ const HERO_CREATOR_CARDS: HeroCreatorCard[] = [
     src: "/media/hero/Gemini_Generated_Gif_9ll7po9ll7po9ll7-watermark-removed.gif",
     alt: "Illustrative finfluencer clip quoting Big opportunity claim",
     hasEmbeddedCaption: true,
-    objectPositionClass: "object-[50%_46%]",
+    isGif: true,
+    objectPositionClass: "object-[50%_18%]",
     sampleLabel: "Promotional claim: Big opportunity",
   },
   {
@@ -65,7 +68,8 @@ const HERO_CREATOR_CARDS: HeroCreatorCard[] = [
     hasEmbeddedCaption: false,
     overlayCaption: "Don't miss out! 📈",
     tiltClass: "rotate-[5deg]",
-    animatedPortrait: true,
+    animatedPortrait: false,
+    isGif: false,
     objectPositionClass: "object-[50%_18%]",
     sampleLabel: "FOMO claim: Don't miss out",
   },
@@ -99,33 +103,35 @@ export function HeroPage() {
 
         {/* Centered Editorial Hero Header — positioned high so it never clashes with the chart animation */}
         <main className="relative z-20 mx-auto flex w-full max-w-[760px] shrink-0 flex-col items-center px-4 pt-6 pb-2 text-center sm:pt-8 lg:pt-9">
-          <h1 className="m-0 text-[36px] leading-[1.06] font-bold tracking-[-0.03em] text-[#161A18] sm:text-[50px] lg:text-[60px] xl:text-[64px]">
-            Think Before You <span className="text-[#4A7C64]">Trust.</span>
+          <h1
+            className="m-0 text-[42px] leading-[1.08] font-bold tracking-[-0.02em] text-[#161A18] sm:text-[54px] lg:text-[64px] xl:text-[70px]"
+            style={{
+              fontFamily: "'Playfair Display', 'Instrument Serif', 'Newsreader', Georgia, serif",
+            }}
+          >
+            Think Before You{" "}
+            <span
+              className="italic font-normal text-[#547361]"
+              style={{
+                fontFamily: "'Instrument Serif', 'Newsreader', 'Playfair Display', Georgia, serif",
+              }}
+            >
+              Trust.
+            </span>
           </h1>
 
-          <p className="mt-2.5 max-w-[520px] text-[14.5px] leading-[1.5] text-[#4A524D] sm:mt-3 sm:text-[17px]">
-            Dissect any stock tip. Check the credibility, detect the hype, and see the real numbers
-            — instantly.
+          <p className="mt-3 max-w-[540px] text-[15px] leading-[1.55] text-[#4A524D] sm:text-[17px]">
+            Dissect any stock tip. Check the credibility, detect the hype, and see the real numbers, instantly.
           </p>
 
           <div className="mt-4 flex items-center justify-center gap-3 sm:mt-5">
-            <Button id="hero-primary-cta" size="lg" onClick={() => navigate("/dashboard")}>
-              <span>Analyze a Tip</span>
-              <ArrowRight size={16} weight="bold" aria-hidden="true" />
-            </Button>
             <Button
-              variant="secondary"
-              size="icon"
-              className="h-12 w-12"
-              aria-label="See how Tip Autopsy works"
-              onClick={() => navigate("/how-it-works")}
+              id="hero-primary-cta"
+              size="lg"
+              className="rounded-full px-8 py-3.5 bg-[#161A18] text-[#FAF8F4] hover:bg-[#29302C] text-[15px] font-semibold shadow-md transition-all"
+              onClick={() => navigate("/dashboard")}
             >
-              <Play
-                size={16}
-                weight="fill"
-                className="translate-x-[1px] text-[#4A524D]"
-                aria-hidden="true"
-              />
+              <span>Analyze a Tip</span>
             </Button>
           </div>
         </main>
@@ -133,7 +139,7 @@ export function HeroPage() {
         {/* Lower Wave-Clipped 5-Card Finfluencer Strip sitting below the animated candlestick showcase */}
         <div className="relative z-20 flex min-h-0 w-full flex-1 flex-col justify-end">
           {/* Desktop (lg+): Full-bleed 5-panel wave-clipped strip */}
-          <div className="relative hidden h-[44vh] min-h-[220px] max-h-[345px] w-full lg:block">
+          <div className="relative hidden h-[50vh] min-h-[320px] max-h-[460px] w-full lg:block">
             <div
               className="grid h-full w-full grid-cols-5 gap-[4px] bg-white/95"
               style={{ clipPath: "url(#hero-wave-strip-clip)" }}
@@ -144,14 +150,12 @@ export function HeroPage() {
                   type="button"
                   onClick={() => navigate("/dashboard")}
                   aria-label={`Inspect example tip in Tip Autopsy analyzer: ${card.sampleLabel}`}
-                  className="group relative h-full w-full cursor-pointer overflow-hidden bg-[#EFECE6] text-left focus-visible:outline-offset-[-3px]"
+                  className="group relative h-full w-full cursor-pointer overflow-hidden bg-[#161A18] text-left focus-visible:outline-offset-[-3px]"
                 >
                   <img
                     src={card.src}
                     alt={card.alt}
-                    className={`h-full w-full object-cover ${card.objectPositionClass} transition-transform duration-300 group-hover:scale-[1.04] ${
-                      card.animatedPortrait ? "animate-portrait-live" : ""
-                    }`}
+                    className={`h-full w-full object-cover ${card.objectPositionClass} transition-transform duration-300 group-hover:scale-[1.04]`}
                   />
                   <div
                     className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#3B8E6A]/18 to-transparent"
@@ -174,21 +178,19 @@ export function HeroPage() {
 
           {/* Mobile & Tablet (<lg): Horizontal scroll-snap carousel constrained to viewport */}
           <div className="flex min-h-0 flex-1 items-end px-4 pb-3 lg:hidden">
-            <div className="flex h-full max-h-[265px] w-full snap-x snap-mandatory gap-3 overflow-x-auto pb-1">
+            <div className="flex h-full max-h-[290px] w-full snap-x snap-mandatory gap-3 overflow-x-auto pb-1">
               {HERO_CREATOR_CARDS.map((card) => (
                 <button
                   key={card.id}
                   type="button"
                   onClick={() => navigate("/dashboard")}
                   aria-label={`Inspect example tip in Tip Autopsy analyzer: ${card.sampleLabel}`}
-                  className="relative h-full aspect-[3/4] shrink-0 snap-center overflow-hidden rounded-[18px] border border-white/80 bg-[#EFECE6] shadow-[0_8px_24px_rgba(22,26,24,0.08)]"
+                  className="relative h-full aspect-[3/4] shrink-0 snap-center overflow-hidden rounded-[18px] border border-white/80 bg-[#161A18] shadow-[0_8px_24px_rgba(22,26,24,0.08)]"
                 >
                   <img
                     src={card.src}
                     alt={card.alt}
-                    className={`h-full w-full object-cover ${card.objectPositionClass} ${
-                      card.animatedPortrait ? "animate-portrait-live" : ""
-                    }`}
+                    className={`h-full w-full object-cover ${card.objectPositionClass}`}
                   />
                   {!card.hasEmbeddedCaption && card.overlayCaption && (
                     <span
@@ -204,13 +206,11 @@ export function HeroPage() {
             </div>
           </div>
 
-          {/* Compact Single-Line Non-Advisory Footer Strip */}
-          <footer className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[rgba(22,26,24,0.08)] bg-[rgba(250,248,244,0.95)] px-4 py-2 text-[11px] leading-snug text-[#6E7771] sm:px-6">
-            <span className="truncate">
-              <strong className="font-semibold text-[#161A18]">{CORE_PRODUCT_RULE}</strong>{" "}
-              {MANDATORY_DISCLAIMER}
+          {/* Visually hidden for clean edge-to-edge UI, preserved in DOM for accessibility & compliance */}
+          <footer className="sr-only">
+            <span>
+              <strong>{CORE_PRODUCT_RULE}</strong> {MANDATORY_DISCLAIMER}
             </span>
-            <ProvenancePill label="Synthetic / Demo" />
           </footer>
         </div>
       </section>
