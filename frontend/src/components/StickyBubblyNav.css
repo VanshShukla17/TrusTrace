@@ -1,0 +1,357 @@
+/* ==========================================================================
+   StickyBubblyNav — Bottom Docked Liquid Glass Notch with Clean Unclipped Pill
+   ========================================================================== */
+
+.sticky-bubbly-nav-host {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 60px;
+  flex-shrink: 0;
+}
+
+.sticky-bubbly-svg-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Outer Liquid Glass Notch Capsule — Continuous Morphing Container */
+.sticky-bubbly-notch {
+  pointer-events: auto;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(245, 242, 235, 0.88);
+  backdrop-filter: blur(20px) saturate(155%);
+  -webkit-backdrop-filter: blur(20px) saturate(155%);
+  border: 1px solid rgba(24, 24, 27, 0.08);
+  box-shadow:
+    0 10px 28px -6px rgba(24, 32, 26, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  transform-origin: center bottom;
+  will-change: transform, padding, box-shadow;
+  transition:
+    padding 380ms cubic-bezier(0.34, 1.48, 0.64, 1),
+    background-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  user-select: none;
+}
+
+.sticky-bubbly-notch--resting {
+  min-width: 124px;
+  height: 48px;
+  padding: 6px 20px;
+  cursor: pointer;
+  transform: translateY(0) scale(1);
+}
+
+.sticky-bubbly-notch--resting:hover {
+  background: rgba(245, 242, 235, 0.95);
+  transform: translateY(-2px) scale(1.03);
+}
+
+.sticky-bubbly-notch--expanded {
+  min-width: 124px;
+  min-height: 56px;
+  padding: 7px 8px;
+  background: rgba(245, 242, 235, 0.94);
+  border-color: rgba(59, 110, 82, 0.16);
+  box-shadow:
+    0 18px 42px -8px rgba(24, 32, 26, 0.2),
+    0 4px 12px -2px rgba(59, 110, 82, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  transform: translateY(-3px) scale(1.01);
+}
+
+/* Resting Docked Trigger Layer (Smoothly cross-fades & scales in/out) */
+.sticky-bubbly-resting-trigger {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #243329;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1) 70ms,
+    transform 340ms cubic-bezier(0.34, 1.56, 0.64, 1) 40ms;
+}
+
+.sticky-bubbly-resting-trigger--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px) scale(0.55);
+  transition:
+    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 210ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sticky-bubbly-resting-handle {
+  display: block;
+  width: 28px;
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(36, 51, 41, 0.32);
+  transition:
+    width 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sticky-bubbly-resting-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(163, 184, 168, 0.34);
+  color: #243329;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  transition:
+    transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Expanded Bubbly Row Container — Continuous Two-Way Max-Width Interpolation */
+.sticky-bubbly-track-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    max-width 390ms cubic-bezier(0.34, 1.32, 0.64, 1),
+    opacity 230ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sticky-bubbly-track-wrap--closed {
+  max-width: 0px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    max-width 300ms cubic-bezier(0.32, 0, 0.2, 1),
+    opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sticky-bubbly-track-wrap--open {
+  max-width: 960px;
+  opacity: 1;
+  overflow: visible;
+  pointer-events: auto;
+}
+
+/* Inner List — overflow: visible when open so pill rounded caps & shadows are never clipped */
+.sticky-bubbly-list {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: visible;
+}
+
+/* Staggered Spring Pop per Bubble item (both on enter and exit) */
+.sticky-bubbly-item-li {
+  display: flex;
+  align-items: center;
+  transform-origin: center center;
+  transition:
+    transform 370ms cubic-bezier(0.34, 1.54, 0.64, 1),
+    opacity 230ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--bubble-dist, 0) * 20ms);
+}
+
+.sticky-bubbly-track-wrap--closed .sticky-bubbly-item-li {
+  opacity: 0;
+  transform: translateY(8px) translateX(calc(var(--bubble-signed, 0) * -12px)) scale(0.5);
+  transition:
+    transform 250ms cubic-bezier(0.36, 0, 0.66, -0.15),
+    opacity 160ms ease-out;
+  transition-delay: calc((3 - var(--bubble-dist, 0)) * 12ms);
+}
+
+.sticky-bubbly-track-wrap--open .sticky-bubbly-item-li {
+  opacity: 1;
+  transform: translateY(0) translateX(0) scale(1);
+}
+
+/* Individual Bubble Button — Circular at rest, Stretches Cleanly to Pill on Hover/Focus */
+.sticky-bubbly-bubble {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  min-width: 42px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 9999px;
+  background: rgba(163, 184, 168, 0.28);
+  color: #243329;
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transform-origin: center center;
+  transition:
+    background-color 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 340ms cubic-bezier(0.34, 1.48, 0.64, 1),
+    transform 340ms cubic-bezier(0.34, 1.52, 0.64, 1),
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Current route indicator when resting as a circle inside expanded bar */
+.sticky-bubbly-bubble--current {
+  background: rgba(74, 124, 89, 0.24);
+  color: #1F4D3A;
+  box-shadow: inset 0 0 0 1.5px rgba(59, 110, 82, 0.38);
+}
+
+/* Stretched Hovered / Focused Pill State — Cleanly Nested Inside Outer Capsule */
+.sticky-bubbly-bubble--stretched {
+  padding: 0 18px;
+  background: #3B6E52;
+  color: #FFFFFF;
+  box-shadow:
+    0 6px 16px -4px rgba(31, 77, 58, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  transform: scale(1.015);
+}
+
+/* Neighbor pull tension when adjacent bubble stretches */
+.sticky-bubbly-bubble--neighbor-left {
+  transform: translateX(-1.5px) scale(0.96);
+}
+
+.sticky-bubbly-bubble--neighbor-right {
+  transform: translateX(1.5px) scale(0.96);
+}
+
+.sticky-bubbly-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 300ms cubic-bezier(0.34, 1.52, 0.64, 1);
+}
+
+.sticky-bubbly-bubble--stretched .sticky-bubbly-icon {
+  transform: scale(1.08);
+}
+
+/* Animated Label Expansion inside Stretched Pill */
+.sticky-bubbly-label-wrap {
+  display: inline-grid;
+  grid-template-columns: 0fr;
+  opacity: 0;
+  margin-left: 0;
+  transform: translateX(-4px);
+  transition:
+    grid-template-columns 330ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    opacity 210ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin-left 310ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    transform 310ms cubic-bezier(0.34, 1.48, 0.64, 1);
+}
+
+.sticky-bubbly-bubble--stretched .sticky-bubbly-label-wrap {
+  grid-template-columns: 1fr;
+  opacity: 1;
+  margin-left: 8px;
+  transform: translateX(0);
+}
+
+.sticky-bubbly-label-inner {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Active dot indicator at bottom of current route bubble */
+.sticky-bubbly-active-dot {
+  position: absolute;
+  bottom: 4.5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: #3B6E52;
+  transition: opacity 200ms ease;
+}
+
+.sticky-bubbly-bubble--stretched .sticky-bubbly-active-dot {
+  background: rgba(255, 255, 255, 0.85);
+  opacity: 0;
+}
+
+/* Mobile & Tablet Viewport Adjustments */
+@media (max-width: 767px) {
+  .sticky-bubbly-nav-host {
+    min-height: 54px;
+  }
+
+  .sticky-bubbly-notch--expanded {
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+    padding: 6px 8px;
+  }
+
+  .sticky-bubbly-list {
+    gap: 4px;
+  }
+
+  .sticky-bubbly-bubble {
+    height: 42px;
+    min-width: 42px;
+  }
+
+  .sticky-bubbly-bubble--stretched {
+    padding: 0 14px;
+  }
+}
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .sticky-bubbly-notch,
+  .sticky-bubbly-resting-trigger,
+  .sticky-bubbly-resting-icon-badge,
+  .sticky-bubbly-resting-handle,
+  .sticky-bubbly-track-wrap,
+  .sticky-bubbly-item-li,
+  .sticky-bubbly-bubble,
+  .sticky-bubbly-icon,
+  .sticky-bubbly-label-wrap {
+    transition: none !important;
+    transition-delay: 0ms !important;
+  }
+
+  .sticky-bubbly-notch--resting,
+  .sticky-bubbly-notch--expanded,
+  .sticky-bubbly-bubble--stretched,
+  .sticky-bubbly-bubble--neighbor-left,
+  .sticky-bubbly-bubble--neighbor-right {
+    transform: none !important;
+  }
+}

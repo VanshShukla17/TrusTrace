@@ -53,6 +53,13 @@ describe("Tip Autopsy Phase 1 & 2 Frontend Guardrails", () => {
     expect(screen.queryByText(/Live Market Data/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Confidence Score/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Past Reports/i)).not.toBeInTheDocument();
+
+    // Verify docked StickyBubblyNav notch renders in resting state and expands on hover/click
+    const notchNav = screen.getByTestId("sticky-bubbly-nav");
+    expect(notchNav).toBeInTheDocument();
+    fireEvent.mouseEnter(notchNav);
+    expect(screen.getByRole("menuitem", { name: "Analyze Tip" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Pretend Money" })).toBeInTheDocument();
   });
 
   it("renders explicit status text on neutral evidence badges", () => {
