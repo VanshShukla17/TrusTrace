@@ -31,7 +31,7 @@ import {
   parseTip,
   requestVoiceReadout,
 } from "../../lib/apiClient";
-import type { CheckStatus, DataLabel, HypeFlag, SupportedVoiceLanguage } from "../../types/api";
+import type { CheckStatus, ClaimLedger, DataLabel, HypeFlag, SupportedVoiceLanguage, TipDirection } from "../../types/api";
 import { PauseAndPlanGate } from "../pause-plan/PauseAndPlanGate";
 import { TipTimeMachine } from "../time-machine/TipTimeMachine";
 import { useAutopsy } from "../workflow/AutopsyContext";
@@ -39,6 +39,31 @@ import { useAutopsy } from "../workflow/AutopsyContext";
 interface AnalyzeLocationState {
   prefillQuery?: string;
   selectedDemoId?: string;
+}
+
+function extractQuickClaims(text: string) {
+  let direction: TipDirection | "" = "";
+  if (/\b(buy|bullish|long|upside|breakout|kharido|ce\b)/i.test(text)) direction = "BULLISH";
+  else if (/\b(sell|bearish|short|downside|breakdown|becho|pe\b)/i.test(text)) direction = "BEARISH";
+
+  let targetPrice = "";
+  const targetMatch = /\b(?:target|tgt|t1|t2|tp)\s*[:\-=@]?\s*(?:rs\.?|₹|inr)?\s*(\d{1,6}(?:,\d{3})*(?:\.\d{1,2})?)/i.exec(text);
+  if (targetMatch?.[1]) targetPrice = targetMatch[1].replace(/,/g, "");
+
+  let deadline = "";
+  const deadlineMatch = /\b(\d{1,3}\s*(?:day|days|week|weeks|month|months|trading\s*sessions?|din)|intraday|btst|expiry\s+\d{1,2}\s+[a-z]{3,9}|by\s+\d{1,2}\s+[a-z]{3,9}(?:\s+\d{4})?|\d{4}-\d{2}-\d{2})\b/i.exec(text);
+  if (deadlineMatch?.[0]) deadline = deadlineMatch[0];
+
+  let stopLoss = "";
+  let stopLossGated = false;
+  if (/\b(?:sl|stop[\s-]*loss)\s*[:.\-\s]*(?:paid|vip(?:\s*premium)?|premium|in\s*(?:vip|paid)|members\s*only|dm)\b/i.test(text)) {
+    stopLossGated = true;
+  } else {
+    const slMatch = /\b(?:sl|stop[\s-]*loss)\s*[:.\-=@]?\s*(?:rs\.?|₹|inr)?\s*(\d{1,6}(?:,\d{3})*(?:\.\d{1,2})?)/i.exec(text);
+    if (slMatch?.[1]) stopLoss = slMatch[1].replace(/,/g, "");
+  }
+
+  return { direction, targetPrice, deadline, stopLoss, stopLossGated };
 }
 
 function mapCheckTone(status: CheckStatus): EvidenceTone {
@@ -130,6 +155,13 @@ export function AnalyzeWorkspacePage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [maxUnlocked, setMaxUnlocked] = useState<number>(1);
   const [voiceLang, setVoiceLang] = useState<SupportedVoiceLanguage>("en-IN");
+
+  // Step 1 direct claim ledger input fields (auto-fills Step 2)
+  const [claimDirection, setClaimDirection] = useState<TipDirection | "">("");
+  const [claimTargetPrice, setClaimTargetPrice] = useState<string>("");
+  const [claimDeadline, setClaimDeadline] = useState<string>("");
+  const [claimStopLoss, setClaimStopLoss] = useState<string>("");
+  const [claimStopLossGated, setClaimStopLossGated] = useState<boolean>(false);
 
   const voiceMutation = useMutation({
     mutationFn: requestVoiceReadout,
@@ -240,17 +272,58 @@ export function AnalyzeWorkspacePage() {
         }
       }
       const finalTicker = resolved || stockSearchTerm.toUpperCase().replace(/\s+/g, "_") || "UNKNOWN";
-      setParseResult(parsed, finalTicker);
+
+      // Merge Step 1 form claim inputs directly into claims to guarantee Step 2 is fully filled
+      const mergedClaims: ClaimLedger = {
+        stock: {
+          value: state.stockName.trim() || parsed.claims.stock.value || null,
+          status: (state.stockName.trim() || parsed.claims.stock.value) ? "EXTRACTED" : "NOT_STATED",
+          evidence: parsed.claims.stock.evidence,
+          note: parsed.claims.stock.note,
+        },
+        direction: (claimDirection || parsed.claims.direction.value) ? {
+          value: (claimDirection || parsed.claims.direction.value) as TipDirection,
+          status: "EXTRACTED",
+          evidence: parsed.claims.direction.evidence,
+        } : parsed.claims.direction,
+        target_price: (claimTargetPrice || parsed.claims.target_price.value !== null) ? {
+          value: claimTargetPrice ? Number(claimTargetPrice) : parsed.claims.target_price.value,
+          status: "EXTRACTED",
+          note: "Creator's claimed target price only; not an application conclusion.",
+          evidence: parsed.claims.target_price.evidence,
+        } : parsed.claims.target_price,
+        deadline: (claimDeadline.trim() || parsed.claims.deadline.value) ? {
+          value: claimDeadline.trim() || parsed.claims.deadline.value,
+          status: "EXTRACTED",
+          evidence: parsed.claims.deadline.evidence,
+        } : parsed.claims.deadline,
+        stop_loss: claimStopLossGated ? {
+          value: null,
+          status: "NOT_STATED",
+          gated: true,
+          note: "Stop-loss is gated behind a paid/VIP tier rather than stated openly.",
+          evidence: parsed.claims.stop_loss.evidence,
+        } : (claimStopLoss || parsed.claims.stop_loss.value !== null) ? {
+          value: claimStopLoss ? Number(claimStopLoss) : parsed.claims.stop_loss.value,
+          status: "EXTRACTED",
+          gated: false,
+          evidence: parsed.claims.stop_loss.evidence,
+        } : parsed.claims.stop_loss,
+      };
+
+      setParseResult({ ...parsed, claims: mergedClaims }, finalTicker);
+      updateClaims(mergedClaims);
+
       if (parsed.extracted_text && !state.rawText) {
         setRawText(parsed.extracted_text);
       }
-      if (!state.stockName && parsed.claims.stock.value) {
-        setStockName(parsed.claims.stock.value, finalTicker);
+      if (!state.stockName && mergedClaims.stock.value) {
+        setStockName(mergedClaims.stock.value, finalTicker);
       }
       recordSessionRun({
         id: `${state.influencerName || "creator"}-${finalTicker}-${state.tipDate}`,
         influencerName: state.influencerName || "Not stated",
-        instrumentName: state.stockName || parsed.claims.stock.value || finalTicker,
+        instrumentName: state.stockName || mergedClaims.stock.value || finalTicker,
         ticker: finalTicker,
         tipDate: state.tipDate,
         inputMode: state.inputMode,
@@ -274,13 +347,24 @@ export function AnalyzeWorkspacePage() {
 
   function handleStep1Submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!state.rawText.trim() && !state.uploadedFile && !state.stockName.trim() && !state.selectedDemoCaseId) {
-      setSubmitError("Upload a photo/video, paste a tip, select a demo sample, or enter a stock name to begin.");
+    let textToSubmit = state.rawText.trim();
+    if (!textToSubmit && state.stockName.trim()) {
+      const stock = state.stockName.trim();
+      const dir = claimDirection === "BULLISH" ? "Buy now" : claimDirection === "BEARISH" ? "Sell now" : "Looking at";
+      const tgt = claimTargetPrice ? `Target: ₹${claimTargetPrice}` : "";
+      const dl = claimDeadline.trim() ? `in ${claimDeadline.trim()}` : "";
+      const sl = claimStopLossGated ? "SL PAID in VIP group" : claimStopLoss ? `SL: ₹${claimStopLoss}` : "";
+      textToSubmit = [stock, dir, tgt, dl, sl].filter(Boolean).join(" ");
+      setRawText(textToSubmit);
+    }
+
+    if (!textToSubmit && !state.uploadedFile && !state.stockName.trim() && !state.selectedDemoCaseId && !claimTargetPrice) {
+      setSubmitError("Upload a photo/video, paste a tip, select a demo sample, or enter stock and claim details to begin.");
       return;
     }
     setSubmitError(null);
     parseMutation.mutate({
-      text: state.rawText,
+      text: textToSubmit,
       influencer_name: state.influencerName,
       stock_name: state.stockName,
       demo_case_id: state.selectedDemoCaseId ?? undefined,
@@ -314,6 +398,11 @@ export function AnalyzeWorkspacePage() {
             resetSession();
             setMaxUnlocked(1);
             setSubmitError(null);
+            setClaimDirection("");
+            setClaimTargetPrice("");
+            setClaimDeadline("");
+            setClaimStopLoss("");
+            setClaimStopLossGated(false);
           }}
         >
           <ArrowCounterClockwise size={16} weight="regular" aria-hidden="true" />
@@ -332,9 +421,14 @@ export function AnalyzeWorkspacePage() {
         <form onSubmit={handleStep1Submit} className="grid gap-5 lg:grid-cols-12">
           <GlassCard className="space-y-5 lg:col-span-7">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="m-0 text-[18px] font-semibold text-[#161A18]">
-                Step 1 — Submit Tip Media or Text
-              </h2>
+              <div>
+                <h2 className="m-0 text-[18px] font-semibold text-[#161A18]">
+                  Step 1 — Submit Tip &amp; Claim Information
+                </h2>
+                <p className="mt-1 mb-0 text-[12.5px] text-[#4A524D]">
+                  Enter the tip details and claim parameters below. These will automatically fill the Step 2 Claim Ledger.
+                </p>
+              </div>
               <StatusBadge tone="unverified" label="Processed transiently · Not saved" />
             </div>
 
@@ -437,7 +531,15 @@ export function AnalyzeWorkspacePage() {
               id="tip-source-text"
               label="Tip text or transcript (Hinglish / English)"
               value={state.rawText}
-              onChange={(e) => setRawText(e.target.value)}
+              onChange={(e) => {
+                setRawText(e.target.value);
+                const extracted = extractQuickClaims(e.target.value);
+                if (extracted.direction && !claimDirection) setClaimDirection(extracted.direction);
+                if (extracted.targetPrice && !claimTargetPrice) setClaimTargetPrice(extracted.targetPrice);
+                if (extracted.deadline && !claimDeadline) setClaimDeadline(extracted.deadline);
+                if (extracted.stopLoss && !claimStopLoss) setClaimStopLoss(extracted.stopLoss);
+                if (extracted.stopLossGated) setClaimStopLossGated(true);
+              }}
               placeholder="Paste the Telegram/WhatsApp forward or caption here (e.g., Guaranteed 2x in 10 days! SL PAID...)"
               hint="Optional if you prefer direct Influencer + Stock structured lookup."
             />
@@ -478,6 +580,137 @@ export function AnalyzeWorkspacePage() {
                 onChange={(e) => setTipDate(e.target.value)}
                 hint="Used for pre-tip run-up and tip-day volume checks."
               />
+            </div>
+
+            {/* CLAIM LEDGER FORM FIELDS (Pre-fills Step 2 Automatically) */}
+            <div className="rounded-2xl border border-[rgba(74,124,100,0.22)] bg-[rgba(244,248,246,0.6)] p-4 sm:p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="m-0 text-[14.5px] font-semibold text-[#161A18] flex items-center gap-2">
+                    <ShieldCheck size={18} weight="duotone" className="text-[#4A7C64]" aria-hidden="true" />
+                    Claim Ledger Form (Direct Entry for Step 2)
+                  </h3>
+                  <p className="mt-0.5 mb-0 text-[12px] text-[#4A524D]">
+                    Enter the claim parameters below. These will automatically populate the Structured Claim Ledger on Step 2.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Direction Claimed */}
+                <div>
+                  <label className="block text-[12.5px] font-semibold text-[#161A18] mb-1.5">
+                    Direction Claimed
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-[#EFECE6] p-1">
+                    {(["BULLISH", "BEARISH", "NEUTRAL"] as const).map((dir) => (
+                      <button
+                        key={dir}
+                        type="button"
+                        onClick={() => setClaimDirection(dir === claimDirection ? "" : dir)}
+                        className={`cursor-pointer rounded-lg py-1.5 text-center text-[12px] font-semibold transition-all ${
+                          claimDirection === dir
+                            ? dir === "BULLISH"
+                              ? "bg-[#285A44] text-white shadow-sm"
+                              : dir === "BEARISH"
+                              ? "bg-[#8A3B14] text-white shadow-sm"
+                              : "bg-[#161A18] text-white shadow-sm"
+                            : "text-[#4A524D] hover:text-[#161A18]"
+                        }`}
+                      >
+                        {dir === "BULLISH" ? "Buy / Bullish" : dir === "BEARISH" ? "Sell / Bearish" : "Neutral"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Target Price */}
+                <div>
+                  <label htmlFor="step1-target-price" className="block text-[12.5px] font-semibold text-[#161A18] mb-1.5">
+                    Target Price (Creator&apos;s Claim Only)
+                  </label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-[14px] font-semibold text-[#6E7771]">
+                      ₹
+                    </span>
+                    <input
+                      id="step1-target-price"
+                      type="number"
+                      step="any"
+                      value={claimTargetPrice}
+                      onChange={(e) => setClaimTargetPrice(e.target.value)}
+                      placeholder="e.g. 680"
+                      className="h-10 w-full rounded-xl border border-[rgba(22,26,24,0.16)] bg-white pl-8 pr-3 text-[13.5px] text-[#161A18] placeholder:text-[#9A9F9C] focus:border-[#4A7C64] focus:outline-none focus:ring-2 focus:ring-[#4A7C64]/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Deadline */}
+                <div>
+                  <label htmlFor="step1-deadline" className="block text-[12.5px] font-semibold text-[#161A18] mb-1.5">
+                    Stated Deadline / Horizon
+                  </label>
+                  <input
+                    id="step1-deadline"
+                    type="text"
+                    value={claimDeadline}
+                    onChange={(e) => setClaimDeadline(e.target.value)}
+                    placeholder="e.g. 10 days, 2 weeks, Intraday"
+                    className="h-10 w-full rounded-xl border border-[rgba(22,26,24,0.16)] bg-white px-3 text-[13.5px] text-[#161A18] placeholder:text-[#9A9F9C] focus:border-[#4A7C64] focus:outline-none focus:ring-2 focus:ring-[#4A7C64]/20"
+                  />
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {["Intraday", "10 days", "2 weeks", "1 month"].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setClaimDeadline(preset)}
+                        className="rounded-md border border-[rgba(22,26,24,0.1)] bg-white px-2 py-0.5 text-[11px] text-[#4A524D] hover:bg-[#E6F2EC] hover:text-[#1F4D3A] cursor-pointer"
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Stop-Loss */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label htmlFor="step1-stop-loss" className="block text-[12.5px] font-semibold text-[#161A18]">
+                      Stop-Loss Level
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[11.5px] font-medium text-[#9A5B13] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={claimStopLossGated}
+                        onChange={(e) => {
+                          setClaimStopLossGated(e.target.checked);
+                          if (e.target.checked) setClaimStopLoss("");
+                        }}
+                        className="rounded border-[rgba(22,26,24,0.25)] text-[#4A7C64] focus:ring-[#4A7C64]"
+                      />
+                      <span>Gated (SL PAID)</span>
+                    </label>
+                  </div>
+
+                  <div className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-[14px] font-semibold text-[#6E7771]">
+                      ₹
+                    </span>
+                    <input
+                      id="step1-stop-loss"
+                      type="number"
+                      step="any"
+                      disabled={claimStopLossGated}
+                      value={claimStopLossGated ? "" : claimStopLoss}
+                      onChange={(e) => setClaimStopLoss(e.target.value)}
+                      placeholder={claimStopLossGated ? "Stop-loss hidden in VIP group" : "e.g. 590"}
+                      className={`h-10 w-full rounded-xl border border-[rgba(22,26,24,0.16)] pl-8 pr-3 text-[13.5px] text-[#161A18] placeholder:text-[#9A9F9C] focus:border-[#4A7C64] focus:outline-none focus:ring-2 focus:ring-[#4A7C64]/20 ${
+                        claimStopLossGated ? "bg-[#FDF3E4]/70 text-[#9A5B13] italic" : "bg-white"
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {submitError && (
@@ -530,7 +763,15 @@ export function AnalyzeWorkspacePage() {
                   <button
                     key={demo.id}
                     type="button"
-                    onClick={() => loadDemoCase(demo)}
+                    onClick={() => {
+                      loadDemoCase(demo);
+                      const extracted = extractQuickClaims(demo.sample_text);
+                      setClaimDirection(extracted.direction);
+                      setClaimTargetPrice(extracted.targetPrice);
+                      setClaimDeadline(extracted.deadline);
+                      setClaimStopLoss(extracted.stopLoss);
+                      setClaimStopLossGated(extracted.stopLossGated);
+                    }}
                     className={`flex w-full cursor-pointer items-start justify-between gap-3 rounded-2xl border p-3.5 text-left transition-all ${
                       selected
                         ? "border-[#4A7C64] bg-[#E6F2EC]/65 shadow-sm"
@@ -698,33 +939,6 @@ export function AnalyzeWorkspacePage() {
                     }
                   />
                 </div>
-              </div>
-
-              {/* Manual Override for User-Confirmed Stock / Influencer */}
-              <div className="grid gap-3 pt-1 sm:grid-cols-2">
-                <TextField
-                  id="step2-confirm-influencer"
-                  label="Confirm Influencer Name"
-                  value={state.influencerName}
-                  onChange={(e) => setInfluencerName(e.target.value)}
-                />
-                <TextField
-                  id="step2-confirm-stock"
-                  label="Confirm Stock / Instrument"
-                  value={state.stockName}
-                  onChange={(e) => {
-                    setStockName(e.target.value, "");
-                    if (activeClaims) {
-                      updateClaims({
-                        ...activeClaims,
-                        stock: {
-                          ...activeClaims.stock,
-                          value: e.target.value || null,
-                        },
-                      });
-                    }
-                  }}
-                />
               </div>
             </GlassCard>
 
