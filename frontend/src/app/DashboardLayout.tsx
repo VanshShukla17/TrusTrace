@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet } from "react-router-dom";
 import {
   BookOpenText,
   ChartLineUp,
+  Coins,
   FilmStrip,
   List,
   LockSimple,
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: SquaresFour, end: true },
   { to: "/analyze", label: "New Analysis", icon: MagnifyingGlass, end: false },
   { to: "/stocks", label: "Real-Time Stocks", icon: ChartLineUp, end: false },
+  { to: "/pretend-money", label: "Pretend Money (10Y)", icon: Coins, end: false },
   { to: "/finfluencers", label: "Finfluencers", icon: UsersThree, end: false },
   { to: "/corpus", label: "Demo Corpus", icon: FilmStrip, end: false },
   { to: "/how-it-works", label: "How Checks Work", icon: BookOpenText, end: false },

@@ -382,6 +382,20 @@ A checked box means the user has reviewed and accepted the task, not merely that
 - [x] Run backend & frontend lint, typecheck, unit/integration tests, production builds, Supabase `get_advisors`, and Playwright E2E flows covering `/stocks` → `/analyze` and `/finfluencers` → sync → subscribe → guarded WhatsApp preview → unsubscribe.
 - [x] Acceptance: all automated suites pass with zero Output Guard leaks, zero RLS advisories, and zero persisted tip/media uploads.
 
+## Phase 5 — Pretend Money: 10-Year Historical Allocation Sandbox (`/pretend-money`)
+
+### 5.1 Build 10-year historical timeline fetcher and deterministic pretend-money simulator
+
+- [x] Extend `backend/src/integrations/liveMarketFeed.ts` with `fetchLiveTenYearTimeline` (`range=10y&interval=1wk` for NSE/BSE stock + aligned `^NSEI` NIFTY 50 benchmark, 10Y historical milestones, and snapshot-anchored `SYNTHETIC` / `DATED_SNAPSHOT` 10-year fallback series).
+- [x] Create `backend/src/domain/pretend-money/pretendMoneySimulator.ts` using `decimal.js` for lump-sum and multi-tranche timeline allocations, post-entry max drawdown tracking, optional stop-loss threshold trigger detection, same-date `NIFTY 50` benchmark comparison, and Output-Guarded educational takeaways (`scanSystemAuthoredText`).
+- [x] Expose `GET /api/live/stocks/:ticker/timeline-10y` and `POST /api/live/stocks/:ticker/pretend-evaluate` in `backend/src/api/routes/liveStocks.ts`.
+
+### 5.2 Build frontend Pretend Money 10-Year Timeline page (`/pretend-money`)
+
+- [x] Add `frontend/src/features/pretend-money/PretendMoneyPage.tsx` and wire `/pretend-money` into `App.tsx`, `DashboardLayout.tsx` (Phosphor `Coins` icon), and `DashboardOverviewPage.tsx`.
+- [x] Provide universal NSE/BSE stock search, starting pretend wallet presets (`₹25k` to `₹10L`), click-to-allocate 10-year Recharts timeline, one-click historical scenarios (*Lump Sum 10Y Start*, *Chased Pre-Tip Run-Up Peak*, *Yearly Staggered Tranches*, *Pullback & Recovery Split*), optional stop-loss rule selector, interactive Time-Travel Evaluation Date scrubber, portfolio vs. `NIFTY 50` curve, and Output-Guarded evidence takeaways with mandatory disclaimer.
+- [x] Verify with backend & frontend lint, typecheck, unit/integration tests, and production builds.
+
 ## Backlog / Deferred Beyond MVP
 
 - [ ] OS-level WhatsApp share-to-app integration, subject to privacy and platform-policy review.

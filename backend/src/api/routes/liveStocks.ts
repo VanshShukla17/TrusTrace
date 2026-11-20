@@ -5,15 +5,39 @@ import { AppError } from "../../core/errors.js";
 import type { EvidenceRepository } from "../../db/repository.js";
 import {
   DEFAULT_INDIAN_WATCHLIST,
+  buildDeterministicTenYearFallbackSeries,
   fetchLiveBenchmarkSummaries,
   fetchLiveStockDetail,
   fetchLiveStockQuote,
+  fetchLiveTenYearTimeline,
   normalizeIndianYahooSymbol,
   searchLiveIndianStocks,
   type LiveStockQuote,
+  type LiveTenYearTimelineResponse,
 } from "../../integrations/liveMarketFeed.js";
+import { evaluatePretendMoneyTimeline } from "../../domain/pretend-money/pretendMoneySimulator.js";
 
 const RangeSchema = z.enum(["1d", "1mo", "3mo", "6mo"]).default("1mo");
+
+const PretendEvaluateRequestSchema = z.object({
+  starting_wallet_inr: z.number().min(1_000).max(100_000_000).default(100_000),
+  evaluation_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  stop_loss_pct: z.number().min(1).max(90).nullable().default(null),
+  tranches: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(64),
+        entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        amount_inr: z.number().positive().max(100_000_000),
+        label: z.string().max(80).optional(),
+      })
+    )
+    .max(30)
+    .default([]),
+});
 
 function asyncRoute(
   fn: (req: Request, res: Response, next: NextFunction) => Promise<void>
@@ -298,6 +322,90 @@ export function createLiveStocksRouter(params: {
           volume: b.volume,
         })),
         avg_daily_traded_value_cr: null,
+      });
+    })
+  );
+
+  async function resolveTenYearTimeline(
+    rawTicker: string
+  ): Promise<LiveTenYearTimelineResponse> {
+    const liveTimeline = await fetchLiveTenYearTimeline(rawTicker, {
+      enabled: config.LIVE_MARKET_ENABLED,
+      fetchImpl,
+    });
+    if (liveTimeline) return liveTimeline;
+
+    const { canonicalTicker, exchange } = normalizeIndianYahooSymbol(rawTicker);
+    const stock = await repo.getStockByTicker(canonicalTicker);
+    const watchlistItem = DEFAULT_INDIAN_WATCHLIST.find((w) => w.ticker === canonicalTicker);
+    const bars = stock ? await repo.getPriceHistory(stock.ticker) : [];
+
+    return buildDeterministicTenYearFallbackSeries({
+      ticker: canonicalTicker,
+      company_name: stock?.company_name ?? watchlistItem?.company_name ?? canonicalTicker,
+      exchange: stock?.exchange ?? watchlistItem?.exchange ?? exchange,
+      sector: watchlistItem?.sector ?? null,
+      anchorBars: bars,
+    });
+  }
+
+  // 4. GET /api/live/stocks/:ticker/timeline-10y
+  router.get(
+    "/live/stocks/:ticker/timeline-10y",
+    asyncRoute(async (req, res) => {
+      const rawTicker = String(req.params.ticker ?? "").trim();
+      if (!rawTicker || rawTicker.length > 32) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Please specify a valid NSE or BSE stock ticker.",
+          statusCode: 400,
+          retryable: false,
+        });
+      }
+
+      const timeline = await resolveTenYearTimeline(rawTicker);
+      res.status(200).json({
+        request_id: req.requestId ?? "req_unknown",
+        ...timeline,
+      });
+    })
+  );
+
+  // 5. POST /api/live/stocks/:ticker/pretend-evaluate
+  router.post(
+    "/live/stocks/:ticker/pretend-evaluate",
+    asyncRoute(async (req, res) => {
+      const rawTicker = String(req.params.ticker ?? "").trim();
+      if (!rawTicker || rawTicker.length > 32) {
+        throw new AppError({
+          code: "VALIDATION_ERROR",
+          message: "Please specify a valid NSE or BSE stock ticker.",
+          statusCode: 400,
+          retryable: false,
+        });
+      }
+
+      const parsedBody = PretendEvaluateRequestSchema.parse(req.body ?? {});
+      const timeline = await resolveTenYearTimeline(rawTicker);
+
+      const evaluation = evaluatePretendMoneyTimeline({
+        ticker: timeline.ticker,
+        company_name: timeline.company_name,
+        starting_wallet_inr: parsedBody.starting_wallet_inr,
+        evaluation_date: parsedBody.evaluation_date,
+        stop_loss_pct: parsedBody.stop_loss_pct,
+        tranches: parsedBody.tranches,
+        series: timeline.series,
+      });
+
+      res.status(200).json({
+        request_id: req.requestId ?? "req_unknown",
+        data_freshness: timeline.data_freshness,
+        data_label: timeline.data_label,
+        source_name: timeline.source_name,
+        as_of_date: timeline.as_of_date,
+        fetched_at: timeline.fetched_at,
+        ...evaluation,
       });
     })
   );

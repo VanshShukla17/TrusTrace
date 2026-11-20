@@ -608,6 +608,9 @@ Frontend environment settings may include only public values such as `VITE_API_B
 - Keep backups enabled for production Supabase PostgreSQL and test restoration before public release.
 - Document how to roll back a deployment and how to disable the LLM/voice integration independently.
 - Use cached immutable snapshot reads for the chart and deterministic checks; never cache a response without including its snapshot/version in the cache key.
+- **Pretend Money 10-Year Historical Allocation Sandbox (`/pretend-money`):**
+  - `GET /api/live/stocks/:ticker/timeline-10y` fetches 10-year weekly OHLCV bars (`range=10y&interval=1wk`) for the requested NSE/BSE equity and aligns `NIFTY 50` (`^NSEI`) weekly closes in parallel (cached for 30 minutes), falling back deterministically to a snapshot-anchored 10-year series labelled `SYNTHETIC` / `DATED_SNAPSHOT` when offline.
+  - `POST /api/live/stocks/:ticker/pretend-evaluate` runs `evaluatePretendMoneyTimeline` (`backend/src/domain/pretend-money/pretendMoneySimulator.ts`) using `decimal.js` to calculate tranche units, post-entry max drawdown, stop-loss trigger lock-in dates, annualized CAGR, and same-date `NIFTY 50` benchmark equivalence, routing all educational takeaway sentences through `scanSystemAuthoredText()`.
 
 ## 12. Open Decisions to Confirm During Review
 

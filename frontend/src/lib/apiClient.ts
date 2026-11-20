@@ -283,3 +283,34 @@ export function unsubscribeFinfluencerAlert(
     }
   );
 }
+
+// Phase 5: Pretend Money 10-Year Historical Allocation Sandbox APIs
+export function fetchTenYearTimeline(
+  ticker: string
+): Promise<import("../types/api").TenYearTimelineResponse> {
+  return apiJson<import("../types/api").TenYearTimelineResponse>(
+    `/api/live/stocks/${encodeURIComponent(ticker)}/timeline-10y`
+  );
+}
+
+export function evaluatePretendMoney(params: {
+  ticker: string;
+  starting_wallet_inr: number;
+  evaluation_date?: string;
+  stop_loss_pct: number | null;
+  tranches: import("../types/api").PretendTrancheInput[];
+}): Promise<import("../types/api").PretendMoneyEvaluationResponse> {
+  return apiJson<import("../types/api").PretendMoneyEvaluationResponse>(
+    `/api/live/stocks/${encodeURIComponent(params.ticker)}/pretend-evaluate`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        starting_wallet_inr: params.starting_wallet_inr,
+        evaluation_date: params.evaluation_date,
+        stop_loss_pct: params.stop_loss_pct,
+        tranches: params.tranches,
+      }),
+    }
+  );
+}

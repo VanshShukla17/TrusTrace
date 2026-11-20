@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CaretRight,
   ChartLineUp,
+  Coins,
   Database,
   FilmStrip,
   Image as ImageIcon,
@@ -221,8 +222,8 @@ export function DashboardOverviewPage() {
         </div>
       </section>
 
-      {/* Phase 4 Real-Time Quick Access Band */}
-      <section aria-label="Real-time workspaces" className="grid gap-3 md:grid-cols-2">
+      {/* Phase 4 & 5 Real-Time Quick Access Band */}
+      <section aria-label="Real-time workspaces" className="grid gap-3 md:grid-cols-3">
         <GlassCard compact className="flex items-center justify-between gap-3 !p-4">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E6F2EC] text-[#1F4D3A]">
@@ -245,6 +246,32 @@ export function DashboardOverviewPage() {
             className="h-9 shrink-0 px-3.5 text-[12.5px]"
           >
             <span>Open</span>
+            <CaretRight size={14} weight="bold" aria-hidden="true" />
+          </Button>
+        </GlassCard>
+
+        <GlassCard compact className="flex items-center justify-between gap-3 !p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FDF3E4] text-[#9A5B13]">
+              <Coins size={20} weight="duotone" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="m-0 text-[14.5px] font-semibold text-[#161A18]">
+                Pretend Money (10Y Timeline)
+              </h2>
+              <p className="mt-0.5 mb-0 text-[12px] text-[#4A524D]">
+                Make real allocation &amp; stop-loss choices with fake money across a 10-year stock
+                timeline vs. NIFTY 50.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => navigate("/pretend-money")}
+            className="h-9 shrink-0 px-3.5 text-[12.5px]"
+          >
+            <span>Simulate</span>
             <CaretRight size={14} weight="bold" aria-hidden="true" />
           </Button>
         </GlassCard>

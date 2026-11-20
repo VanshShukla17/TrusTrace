@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FinfluencersPage } from "./finfluencers/FinfluencersPage";
+import { PretendMoneyPage } from "./pretend-money/PretendMoneyPage";
 import { RealTimeStocksPage } from "./stocks/RealTimeStocksPage";
 import { AutopsyProvider } from "./workflow/AutopsyContext";
 
@@ -16,6 +17,7 @@ function renderWithProviders(initialPath: string) {
         <MemoryRouter initialEntries={[initialPath]}>
           <Routes>
             <Route path="/stocks" element={<RealTimeStocksPage />} />
+            <Route path="/pretend-money" element={<PretendMoneyPage />} />
             <Route path="/finfluencers" element={<FinfluencersPage />} />
             <Route path="/analyze" element={<div>Analyze Target Route</div>} />
           </Routes>
@@ -251,6 +253,162 @@ describe("Phase 4 — Real-Time Stocks & Finfluencers Pages", () => {
     fireEvent.click(screen.getByRole("button", { name: /One-Click Unsubscribe/i }));
     await waitFor(() => {
       expect(screen.getByText(/Unsubscribed \+91\*\*\*\*\*\*3210/i)).toBeInTheDocument();
+    });
+  });
+
+  it("renders Pretend Money 10-Year Stock Timeline page with wallet choices, scenarios, and Output-Guarded takeaways", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/timeline-10y")) {
+        return new Response(
+          JSON.stringify({
+            request_id: "req_10y_1",
+            ticker: "RELIANCE",
+            yahoo_symbol: "RELIANCE.NS",
+            company_name: "Reliance Industries Ltd",
+            exchange: "NSE",
+            sector: "Energy & Telecom",
+            currency: "INR",
+            start_date: "2016-11-20",
+            end_date: "2026-11-20",
+            fetched_at: "2026-11-20T15:00:00.000Z",
+            as_of_date: "2026-11-20",
+            data_freshness: "LIVE_FEED",
+            data_label: "REAL",
+            source_name: "Yahoo Finance 10Y Historical Weekly Feed (NSE/BSE + NIFTY 50)",
+            snapshot_id: "live-yahoo-10y-weekly-v8",
+            delay_note: "Historical 10-year weekly close series.",
+            series: [
+              { trading_date: "2016-11-20", close: 500, volume: 1200000, benchmark_close: 8100 },
+              { trading_date: "2021-11-20", close: 1200, volume: 1500000, benchmark_close: 17800 },
+              { trading_date: "2026-11-20", close: 1450, volume: 1800000, benchmark_close: 24200 },
+            ],
+            milestones: [
+              {
+                kind: "TEN_YEAR_START",
+                label: "10Y Start",
+                trading_date: "2016-11-20",
+                close: 500,
+                description: "Start of 10-year window",
+              },
+              {
+                kind: "TEN_YEAR_HIGH",
+                label: "10Y Historical High",
+                trading_date: "2026-11-20",
+                close: 1450,
+                description: "High of 10-year window",
+              },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/pretend-evaluate")) {
+        return new Response(
+          JSON.stringify({
+            request_id: "req_eval_1",
+            data_freshness: "LIVE_FEED",
+            data_label: "REAL",
+            source_name: "Yahoo Finance 10Y Historical Weekly Feed (NSE/BSE + NIFTY 50)",
+            as_of_date: "2026-11-20",
+            fetched_at: "2026-11-20T15:00:00.000Z",
+            ticker: "RELIANCE",
+            company_name: "Reliance Industries Ltd",
+            starting_wallet_inr: 100000,
+            evaluation_date: "2026-11-20",
+            stop_loss_pct: null,
+            total_allocated_inr: 50000,
+            unallocated_cash_inr: 50000,
+            stopped_out_cash_inr: 0,
+            active_equity_value_inr: 145000,
+            total_portfolio_value_inr: 195000,
+            total_net_change_inr: 95000,
+            total_return_pct: 95.0,
+            portfolio_cagr_pct: 6.91,
+            worst_tranche_drawdown_pct: 14.2,
+            worst_drawdown_date: "2020-03-23",
+            stopped_out_tranche_count: 0,
+            nifty_equivalent_portfolio_inr: 199382,
+            nifty_equivalent_return_pct: 99.38,
+            fixed_reference_portfolio_inr: 143856,
+            tranches: [
+              {
+                id: "tranche-init-RELIANCE-1",
+                label: "10Y Start Choice",
+                requested_entry_date: "2016-11-20",
+                actual_entry_date: "2016-11-20",
+                amount_inr: 50000,
+                entry_price: 500,
+                units_allocated: 100,
+                status: "ACTIVE_AT_EVAL",
+                stopped_out_date: null,
+                stopped_out_price: null,
+                eval_date: "2026-11-20",
+                eval_price: 1450,
+                final_value_inr: 145000,
+                net_change_inr: 95000,
+                return_pct: 190.0,
+                holding_days: 3652,
+                cagr_pct: 11.23,
+                peak_value_inr: 145000,
+                trough_value_inr: 42900,
+                max_drawdown_pct: 14.2,
+                max_drawdown_date: "2020-03-23",
+                benchmark_entry_close: 8100,
+                benchmark_eval_close: 24200,
+                benchmark_final_value_inr: 149382,
+                benchmark_return_pct: 198.76,
+                fixed_reference_final_value_inr: 93856,
+              },
+            ],
+            equity_curve: [
+              {
+                trading_date: "2016-11-20",
+                stock_close: 500,
+                deployed_capital_inr: 50000,
+                portfolio_value_inr: 100000,
+                nifty_equivalent_inr: 100000,
+              },
+              {
+                trading_date: "2026-11-20",
+                stock_close: 1450,
+                deployed_capital_inr: 50000,
+                portfolio_value_inr: 195000,
+                nifty_equivalent_inr: 199382,
+              },
+            ],
+            guard_status: "PASSED",
+            observations: [
+              {
+                id: "historical_outcome_v1",
+                title: "Historical Timeline Outcome",
+                sentence:
+                  "Across 1 historical allocation(s) totaling ₹50,000 evaluated through 2026-11-20, the pretend wallet changed by +95.00% to ₹1,95,000.",
+                guard_passed: true,
+              },
+            ],
+            mandatory_disclaimer:
+              "This report describes historical facts and risk factors around a tip. It is not investment advice or SEBI-registered research. The decision is yours.",
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response("{}", { status: 404 });
+    });
+
+    renderWithProviders("/pretend-money");
+
+    await waitFor(() => {
+      expect(screen.getByText(/Pretend Money · 10-Year Stock Timeline/i)).toBeInTheDocument();
+      expect(screen.getByText(/Guarded Historical Evidence Takeaways/i)).toBeInTheDocument();
+      expect(screen.getByText(/Output Guard Verified/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/₹1,95,000/i).length).toBeGreaterThan(0);
+    });
+
+    // Apply a one-click scenario preset
+    fireEvent.click(screen.getByRole("button", { name: /100% Lump Sum 10 Years Ago/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Same Dates in NIFTY 50 Index/i)).toBeInTheDocument();
     });
   });
 });

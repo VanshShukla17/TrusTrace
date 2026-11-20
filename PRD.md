@@ -304,6 +304,20 @@ These limitations must be visible in methodology/help content and in the final e
 5. Voice readout in Hindi, Kannada, and English if not completed in the hackathon MVP.
 6. A larger, longitudinal behavioral study to test whether decision-quality improvements persist.
 
+## 11A. Pretend Money — 10-Year Historical Allocation Sandbox (`/pretend-money`)
+
+- **Educational Purpose:** Give first-time Indian retail investors a safe, zero-cost historical sandbox where they can make realistic capital-allocation, entry-timing, and stop-loss choices using virtual pretend money (`₹25,000` to `₹10,00,000` default adjustable wallet) across a **10-Year Historical Timeline** of any NSE or BSE stock.
+- **10-Year Historical Timeline & Milestones:** Displays 10 years of weekly historical close & volume data (`~520` weekly bars from Yahoo Finance v8 with automatic snapshot-anchored 10-year calibration fallback) alongside 10-year historical landmarks (`10Y Start`, `10Y Historical Low`, `Sharp Run-Up Peak`, `Deepest Pullback Trough`, `10Y Historical High`).
+- **Interactive Choices with Fake Money:**
+  - Click any date on the 10-year curve (or scrub the entry-date slider) to deploy a tranche of pretend money at that exact historical close price.
+  - One-click educational choice scenarios: *100% Lump Sum 10 Years Ago*, *Chased a Sharp Pre-Tip Run-Up Peak*, *Yearly Staggered Tranches (10 × 10%)*, and *3-Part Pullback & Recovery Split*.
+  - Optional **Stop-Loss Rule Choice** (`No Stop-Loss / Unprotected` vs. `10%`, `15%`, `20%`, or `30%` threshold) to observe how downside limits behave during historical drawdowns.
+  - **Time-Travel Evaluation Cursor**: Scrub the evaluation date across the 10-year window (or step `+6 Months` / `+1 Year`) to watch how each choice evolves over time.
+- **Non-Advisory Guardrails & Zero Persistence:**
+  - Compares every pretend allocation against placing the exact same cash flows on the exact same historical dates into the **NIFTY 50** index and a `6.5% p.a.` fixed reference rate.
+  - All educational takeaways are scanned by the mandatory Output Guard (`scanSystemAuthoredText`) and carry the verbatim mandatory report disclaimer.
+  - Pretend wallet balances and timeline choices live strictly in transient browser memory (zero login, zero `localStorage`, zero database persistence).
+
 ## 12. Release Definition
 
 Version 1 is ready for a public demo only when:

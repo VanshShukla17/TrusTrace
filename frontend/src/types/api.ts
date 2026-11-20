@@ -430,3 +430,128 @@ export interface CoordinatedDemoSignalResponse {
   what_this_shows: string;
   limitations: string[];
 }
+
+export interface TenYearTimelineBar {
+  trading_date: string;
+  close: number;
+  volume: number | null;
+  benchmark_close: number;
+}
+
+export interface TenYearTimelineMilestone {
+  kind:
+    | "TEN_YEAR_START"
+    | "TEN_YEAR_LOW"
+    | "TEN_YEAR_HIGH"
+    | "SHARPEST_RUNUP_PEAK"
+    | "DEEPEST_DRAWDOWN_TROUGH";
+  label: string;
+  trading_date: string;
+  close: number;
+  description: string;
+}
+
+export interface TenYearTimelineResponse {
+  request_id: string;
+  ticker: string;
+  yahoo_symbol: string;
+  company_name: string;
+  exchange: "NSE" | "BSE";
+  sector: string | null;
+  currency: string;
+  start_date: string;
+  end_date: string;
+  fetched_at: string;
+  as_of_date: string;
+  data_freshness: "LIVE_FEED" | "DATED_SNAPSHOT";
+  data_label: "REAL" | "SYNTHETIC";
+  source_name: string;
+  snapshot_id: string;
+  delay_note: string;
+  series: TenYearTimelineBar[];
+  milestones: TenYearTimelineMilestone[];
+}
+
+export interface PretendTrancheInput {
+  id: string;
+  entry_date: string;
+  amount_inr: number;
+  label?: string;
+}
+
+export interface EvaluatedTrancheResult {
+  id: string;
+  label: string;
+  requested_entry_date: string;
+  actual_entry_date: string;
+  amount_inr: number;
+  entry_price: number;
+  units_allocated: number;
+  status: "ACTIVE_AT_EVAL" | "STOP_LOSS_TRIGGERED" | "AFTER_EVAL_DATE";
+  stopped_out_date: string | null;
+  stopped_out_price: number | null;
+  eval_date: string;
+  eval_price: number;
+  final_value_inr: number;
+  net_change_inr: number;
+  return_pct: number;
+  holding_days: number;
+  cagr_pct: number | null;
+  peak_value_inr: number;
+  trough_value_inr: number;
+  max_drawdown_pct: number;
+  max_drawdown_date: string | null;
+  benchmark_entry_close: number;
+  benchmark_eval_close: number;
+  benchmark_final_value_inr: number;
+  benchmark_return_pct: number;
+  fixed_reference_final_value_inr: number;
+}
+
+export interface PretendPortfolioCurvePoint {
+  trading_date: string;
+  stock_close: number;
+  deployed_capital_inr: number;
+  portfolio_value_inr: number;
+  nifty_equivalent_inr: number;
+}
+
+export interface GuardedPretendObservation {
+  id: string;
+  title: string;
+  sentence: string;
+  guard_passed: boolean;
+}
+
+export interface PretendMoneyEvaluationResponse {
+  request_id: string;
+  data_freshness: "LIVE_FEED" | "DATED_SNAPSHOT";
+  data_label: "REAL" | "SYNTHETIC";
+  source_name: string;
+  as_of_date: string;
+  fetched_at: string;
+  ticker: string;
+  company_name: string;
+  starting_wallet_inr: number;
+  evaluation_date: string;
+  stop_loss_pct: number | null;
+  total_allocated_inr: number;
+  unallocated_cash_inr: number;
+  stopped_out_cash_inr: number;
+  active_equity_value_inr: number;
+  total_portfolio_value_inr: number;
+  total_net_change_inr: number;
+  total_return_pct: number;
+  portfolio_cagr_pct: number | null;
+  worst_tranche_drawdown_pct: number;
+  worst_drawdown_date: string | null;
+  stopped_out_tranche_count: number;
+  nifty_equivalent_portfolio_inr: number;
+  nifty_equivalent_return_pct: number;
+  fixed_reference_portfolio_inr: number;
+  tranches: EvaluatedTrancheResult[];
+  equity_curve: PretendPortfolioCurvePoint[];
+  guard_status: "PASSED" | "BLOCKED_FALLBACK";
+  observations: GuardedPretendObservation[];
+  mandatory_disclaimer: string;
+}
