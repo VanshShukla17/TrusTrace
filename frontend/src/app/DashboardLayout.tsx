@@ -97,7 +97,7 @@ export function DashboardLayout() {
         )}
 
         {/* Desktop Fixed Frosted Left Sidebar Rail (always fits within single window) */}
-        <aside className="hidden h-full w-[236px] shrink-0 flex-col justify-between overflow-y-auto border-r border-[rgba(22,26,24,0.08)] bg-[rgba(255,255,255,0.46)] p-4 xl:p-5 lg:flex">
+        <aside className="glass-scroll hidden h-full w-[236px] shrink-0 flex-col justify-between overflow-y-auto border-r border-[rgba(22,26,24,0.08)] bg-[rgba(255,255,255,0.46)] p-4 xl:p-5 lg:flex">
           <div className="space-y-5">
             <Link to="/" className="inline-flex rounded-xl">
               <BrandMark />
@@ -157,7 +157,7 @@ export function DashboardLayout() {
           <main
             id="main-content"
             tabIndex={-1}
-            className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 lg:p-6"
+            className="glass-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 lg:p-6"
           >
             <Outlet />
           </main>
