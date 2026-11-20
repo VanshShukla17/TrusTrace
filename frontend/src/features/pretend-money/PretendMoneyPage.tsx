@@ -9,6 +9,7 @@ import {
   ClockCounterClockwise,
   Coins,
   FastForward,
+  Hourglass,
   Info,
   MagnifyingGlass,
   MapPin,
@@ -16,6 +17,8 @@ import {
   ShieldCheck,
   Sliders,
   Trash,
+  TrendDown,
+  TrendUp,
   WarningCircle,
 } from "@phosphor-icons/react";
 import {
@@ -24,6 +27,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceArea,
   ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
@@ -106,6 +110,10 @@ export function PretendMoneyPage() {
   const [chartClickMode, setChartClickMode] = useState<"SELECT_DATE" | "INSTANT_ALLOCATE">(
     "SELECT_DATE"
   );
+  // Active pointer state ("POINTER_1" for Invest/Entry Date, "POINTER_2" for Hold Till Date)
+  const [activePointer, setActivePointer] = useState<"POINTER_1" | "POINTER_2">("POINTER_1");
+  const [isDraggingChart, setIsDraggingChart] = useState<boolean>(false);
+  const [appliedNotification, setAppliedNotification] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -154,13 +162,22 @@ export function PretendMoneyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullSeries, selectedTicker]);
 
+  const selectedEntryIndex = useMemo(() => {
+    if (fullSeries.length === 0) return 0;
+    if (!selectedEntryDate) return 0;
+    const idx = fullSeries.findIndex((b) => b.trading_date >= selectedEntryDate);
+    return idx >= 0 ? idx : 0;
+  }, [fullSeries, selectedEntryDate]);
+
   const effectiveEvalIndex = useMemo(() => {
     if (fullSeries.length === 0) return 0;
-    if (evalBarIndex === null || evalBarIndex >= fullSeries.length) {
-      return fullSeries.length - 1;
-    }
-    return Math.max(0, evalBarIndex);
-  }, [evalBarIndex, fullSeries.length]);
+    const rawIndex =
+      evalBarIndex === null || evalBarIndex >= fullSeries.length
+        ? fullSeries.length - 1
+        : evalBarIndex;
+    // Strict user rule: Second pointer cannot go back beyond first!
+    return Math.max(selectedEntryIndex, Math.min(fullSeries.length - 1, rawIndex));
+  }, [evalBarIndex, fullSeries.length, selectedEntryIndex]);
 
   const evaluationDate = useMemo(() => {
     if (fullSeries.length === 0) return undefined;
@@ -177,6 +194,78 @@ export function PretendMoneyPage() {
     }
     return fullSeries[fullSeries.length - 1] ?? null;
   }, [fullSeries, selectedEntryDate]);
+
+  // Global mouseup/touchend listener to stop chart dragging smoothly
+  useEffect(() => {
+    function handleGlobalMouseUp() {
+      setIsDraggingChart(false);
+    }
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    window.addEventListener("touchend", handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+      window.removeEventListener("touchend", handleGlobalMouseUp);
+    };
+  }, []);
+
+  // Real-time calculation of holding duration, invested money, profit/loss, and stock %
+  const holdingStats = useMemo(() => {
+    if (!selectedEntryBar || !evaluationDate || fullSeries.length === 0) {
+      return null;
+    }
+    const evalBar = fullSeries[effectiveEvalIndex] ?? fullSeries[fullSeries.length - 1]!;
+    const entryPrice = selectedEntryBar.close;
+    const exitPrice = evalBar.close;
+
+    const startMs = Date.parse(`${selectedEntryBar.trading_date}T00:00:00Z`);
+    const endMs = Date.parse(`${evalBar.trading_date}T00:00:00Z`);
+    const diffDays = Math.max(0, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)));
+
+    const years = Math.floor(diffDays / 365);
+    const remainingDays = diffDays % 365;
+    const months = Math.floor(remainingDays / 30);
+    const days = remainingDays % 30;
+
+    const parts: string[] = [];
+    if (years > 0) parts.push(`${years} ${years === 1 ? "year" : "years"}`);
+    if (months > 0) parts.push(`${months} ${months === 1 ? "month" : "months"}`);
+    if (parts.length === 0 || (years === 0 && days > 0)) {
+      parts.push(`${days} ${days === 1 ? "day" : "days"}`);
+    }
+
+    const holdingTimeFormatted = `${parts.join(", ")} (${diffDays.toLocaleString("en-IN")} days)`;
+
+    // Capital & Return calculation
+    const matchingTranche = tranches.find((t) => t.entry_date === selectedEntryBar.trading_date);
+    const investedInr = matchingTranche?.amount_inr ?? allocationAmountInr;
+    const sharesAllocated = entryPrice > 0 ? investedInr / entryPrice : 0;
+    const finalValueInr = sharesAllocated * exitPrice;
+    const netPnlInr = finalValueInr - investedInr;
+    const pnlPct = entryPrice > 0 ? ((exitPrice - entryPrice) / entryPrice) * 100 : 0;
+    const isPositive = netPnlInr >= 0;
+
+    return {
+      entryDate: selectedEntryBar.trading_date,
+      entryPrice,
+      exitDate: evalBar.trading_date,
+      exitPrice,
+      diffDays,
+      holdingTimeFormatted,
+      investedInr,
+      sharesAllocated,
+      finalValueInr,
+      netPnlInr,
+      pnlPct,
+      isPositive,
+    };
+  }, [
+    selectedEntryBar,
+    evaluationDate,
+    fullSeries,
+    effectiveEvalIndex,
+    tranches,
+    allocationAmountInr,
+  ]);
 
   // Evaluate pretend money choices deterministically via the backend Output-Guarded endpoint
   const evalQuery = useQuery({
@@ -269,6 +358,46 @@ export function PretendMoneyPage() {
     if (placedIdx >= 0 && placedIdx > effectiveEvalIndex) {
       setEvalBarIndex(fullSeries.length - 1);
     }
+  }
+
+  function handleSetPointer1(dateOrIndex: string | number) {
+    if (fullSeries.length === 0) return;
+    const targetIdx =
+      typeof dateOrIndex === "number"
+        ? dateOrIndex
+        : fullSeries.findIndex((b) => b.trading_date >= dateOrIndex);
+    if (targetIdx < 0) return;
+    const clampedIdx = Math.max(0, Math.min(fullSeries.length - 1, targetIdx));
+    const targetBar = fullSeries[clampedIdx];
+    if (!targetBar) return;
+    setSelectedEntryDate(targetBar.trading_date);
+
+    // If Pointer 1 moves beyond Pointer 2, push Pointer 2 forward so Pointer 2 >= Pointer 1
+    if (clampedIdx > effectiveEvalIndex) {
+      setEvalBarIndex(clampedIdx);
+    }
+  }
+
+  function handleSetPointer2(dateOrIndex: string | number) {
+    if (fullSeries.length === 0) return;
+    const targetIdx =
+      typeof dateOrIndex === "number"
+        ? dateOrIndex
+        : fullSeries.findIndex((b) => b.trading_date >= dateOrIndex);
+    if (targetIdx < 0) return;
+    // Strictly enforce: Pointer 2 cannot go back beyond Pointer 1!
+    const clampedIdx = Math.max(selectedEntryIndex, Math.min(fullSeries.length - 1, targetIdx));
+    setEvalBarIndex(clampedIdx);
+  }
+
+  function handleApplyMoneyPointer1() {
+    if (!selectedEntryBar) return;
+    handleAddAllocationOnDate(selectedEntryBar.trading_date);
+    setAppliedNotification(
+      `✓ Applied ${formatInr(Math.min(remainingWalletCash, allocationAmountInr))} on ${selectedEntryBar.trading_date}! Now drag Pointer 2 to set Hold Till date.`
+    );
+    setActivePointer("POINTER_2");
+    window.setTimeout(() => setAppliedNotification(null), 6000);
   }
 
   function handleRemoveTranche(id: string) {
@@ -788,6 +917,92 @@ export function PretendMoneyPage() {
             </div>
           )}
 
+          {/* Two-Pointer Interaction Toolbar above Chart */}
+          <div className="space-y-2 rounded-xl border border-[rgba(22,26,24,0.08)] bg-[#FAF8F4] p-3">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] font-bold text-[#161A18]">Graph Pointers:</span>
+
+                {/* Pointer 1 Selector */}
+                <button
+                  type="button"
+                  onClick={() => setActivePointer("POINTER_1")}
+                  className={`cursor-pointer inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-bold transition-all ${
+                    activePointer === "POINTER_1"
+                      ? "bg-[#9A5B13] text-white shadow-xs ring-2 ring-[#9A5B13]/30"
+                      : "border border-[rgba(22,26,24,0.12)] bg-white text-[#9A5B13] hover:bg-[#FDF3E4]"
+                  }`}
+                >
+                  <MapPin size={15} weight="fill" />
+                  <span>1. Invest on: {selectedEntryBar?.trading_date ?? "Select Date"}</span>
+                  <span className="rounded-md bg-black/15 px-1.5 py-0.5 text-[11px]">
+                    {selectedEntryBar ? formatInr(selectedEntryBar.close, 2) : "—"}
+                  </span>
+                </button>
+
+                {/* Pointer 2 Selector */}
+                <button
+                  type="button"
+                  onClick={() => setActivePointer("POINTER_2")}
+                  className={`cursor-pointer inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-bold transition-all ${
+                    activePointer === "POINTER_2"
+                      ? "bg-[#1F4D3A] text-white shadow-xs ring-2 ring-[#1F4D3A]/30"
+                      : "border border-[rgba(22,26,24,0.12)] bg-white text-[#1F4D3A] hover:bg-[#E6F2EC]"
+                  }`}
+                >
+                  <Hourglass size={15} weight="fill" />
+                  <span>2. Hold till: {evaluationDate ?? "Drag Date"}</span>
+                  <span className="rounded-md bg-black/15 px-1.5 py-0.5 text-[11px]">
+                    {fullSeries[effectiveEvalIndex] ? formatInr(fullSeries[effectiveEvalIndex].close, 2) : "—"}
+                  </span>
+                </button>
+              </div>
+
+              {/* Quick Action: Apply Money on Pointer 1 */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={handleApplyMoneyPointer1}
+                  disabled={remainingWalletCash <= 0 || !selectedEntryBar}
+                  className="!text-[12px] !h-8 !px-3 shadow-xs"
+                >
+                  <Plus size={14} weight="bold" />
+                  <span>
+                    Apply {formatInr(Math.min(remainingWalletCash, allocationAmountInr))} on {selectedEntryBar?.trading_date}
+                  </span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Pointer Guidance Banner */}
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11.5px] text-[#4A524D]">
+              <div className="flex items-center gap-1.5">
+                {activePointer === "POINTER_1" ? (
+                  <>
+                    <span className="h-2 w-2 rounded-full bg-[#9A5B13] animate-pulse" />
+                    <span>
+                      <strong>Pointer 1 Active:</strong> Click or drag anywhere on graph to set <strong>Invest Date</strong>, then click &ldquo;Apply Money&rdquo;.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="h-2 w-2 rounded-full bg-[#1F4D3A] animate-pulse" />
+                    <span>
+                      <strong>Pointer 2 Active:</strong> Drag along graph to set <strong>Hold Till Date</strong> (cannot go back beyond {selectedEntryBar?.trading_date}).
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {appliedNotification && (
+                <span className="rounded-md bg-[#E6F2EC] px-2 py-0.5 font-semibold text-[#1F4D3A]">
+                  {appliedNotification}
+                </span>
+              )}
+            </div>
+          </div>
+
           {/* Chart Canvas */}
           {timelineQuery.isLoading ? (
             <div
@@ -802,20 +1017,54 @@ export function PretendMoneyPage() {
               </p>
             </div>
           ) : (
-            <div className="h-[310px] w-full rounded-2xl border border-[rgba(22,26,24,0.08)] bg-white/90 p-3">
+            <div className="h-[310px] w-full rounded-2xl border border-[rgba(22,26,24,0.08)] bg-white/90 p-3 select-none">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart
                   data={visibleSeries}
-                  margin={{ top: 12, right: 14, left: 0, bottom: 0 }}
+                  margin={{ top: 16, right: 14, left: 0, bottom: 0 }}
+                  onMouseDown={(chartState) => {
+                    setIsDraggingChart(true);
+                    const clickedDate =
+                      typeof chartState?.activeLabel === "string"
+                        ? chartState.activeLabel
+                        : undefined;
+                    if (!clickedDate) return;
+                    if (activePointer === "POINTER_1") {
+                      handleSetPointer1(clickedDate);
+                    } else {
+                      handleSetPointer2(clickedDate);
+                    }
+                  }}
+                  onMouseMove={(chartState) => {
+                    if (!isDraggingChart) return;
+                    const hoveredDate =
+                      typeof chartState?.activeLabel === "string"
+                        ? chartState.activeLabel
+                        : undefined;
+                    if (!hoveredDate) return;
+                    if (activePointer === "POINTER_1") {
+                      handleSetPointer1(hoveredDate);
+                    } else {
+                      handleSetPointer2(hoveredDate);
+                    }
+                  }}
+                  onMouseUp={() => {
+                    setIsDraggingChart(false);
+                  }}
                   onClick={(chartState) => {
                     const clickedDate =
                       typeof chartState?.activeLabel === "string"
                         ? chartState.activeLabel
                         : undefined;
                     if (!clickedDate) return;
-                    setSelectedEntryDate(clickedDate);
-                    if (chartClickMode === "INSTANT_ALLOCATE" && remainingWalletCash >= 500) {
-                      handleAddAllocationOnDate(clickedDate);
+                    if (activePointer === "POINTER_1") {
+                      handleSetPointer1(clickedDate);
+                      if (chartClickMode === "INSTANT_ALLOCATE" && remainingWalletCash >= 500) {
+                        handleAddAllocationOnDate(clickedDate);
+                        setActivePointer("POINTER_2");
+                      }
+                    } else {
+                      handleSetPointer2(clickedDate);
                     }
                   }}
                 >
@@ -864,23 +1113,50 @@ export function PretendMoneyPage() {
                     fill="url(#pretend10yFill)"
                     name="Stock Close"
                   />
-                  {/* Selected Entry Date Vertical Marker */}
+                  {/* Shaded holding area between Pointer 1 and Pointer 2 */}
+                  {selectedEntryBar && evaluationDate && selectedEntryBar.trading_date <= evaluationDate && (
+                    <ReferenceArea
+                      yAxisId="price"
+                      x1={selectedEntryBar.trading_date}
+                      x2={evaluationDate}
+                      fill="#3B8E6A"
+                      fillOpacity={0.12}
+                      stroke="#3B8E6A"
+                      strokeOpacity={0.3}
+                      strokeDasharray="3 3"
+                    />
+                  )}
+                  {/* Selected Entry Date (Pointer 1) Vertical Marker */}
                   {selectedEntryBar && (
                     <ReferenceLine
                       yAxisId="price"
                       x={selectedEntryBar.trading_date}
                       stroke="#9A5B13"
-                      strokeDasharray="4 4"
-                      strokeWidth={1.5}
+                      strokeDasharray="4 3"
+                      strokeWidth={2}
+                      label={{
+                        value: `📍 1. Invest (${selectedEntryBar.trading_date.slice(0, 7)})`,
+                        position: "insideTopLeft",
+                        fill: "#9A5B13",
+                        fontSize: 11,
+                        fontWeight: 700,
+                      }}
                     />
                   )}
-                  {/* Evaluation Scrubber Date Vertical Marker */}
+                  {/* Evaluation Scrubber Date (Pointer 2) Vertical Marker */}
                   {evaluationDate && (
                     <ReferenceLine
                       yAxisId="price"
                       x={evaluationDate}
                       stroke="#1F4D3A"
-                      strokeWidth={2}
+                      strokeWidth={2.5}
+                      label={{
+                        value: `⏱️ 2. Hold Till (${evaluationDate.slice(0, 7)})`,
+                        position: "insideTopRight",
+                        fill: "#1F4D3A",
+                        fontSize: 11,
+                        fontWeight: 700,
+                      }}
                     />
                   )}
                   {/* Pins for every user-placed pretend money tranche */}
@@ -901,21 +1177,27 @@ export function PretendMoneyPage() {
             </div>
           )}
 
-          {/* Interactive 10-Year Evaluation Date Scrubber ("Time-Travel Slider") */}
+          {/* Interactive 10-Year Dual-Pointer Timeline Scrubber */}
           {fullSeries.length > 0 && (
-            <div className="space-y-2 rounded-2xl border border-[rgba(22,26,24,0.09)] bg-[#FAF8F4] p-3.5">
+            <div className="space-y-3 rounded-2xl border border-[rgba(22,26,24,0.09)] bg-[#FAF8F4] p-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Sliders size={17} weight="duotone" className="text-[#1F4D3A]" aria-hidden="true" />
-                  <label
-                    htmlFor="evaluation-date-scrubber"
-                    className="text-[13px] font-semibold text-[#161A18]"
-                  >
-                    Time-Travel Evaluation Cursor:{" "}
-                    <span className="tabular-nums-lining rounded-md bg-[#E6F2EC] px-2 py-0.5 text-[#1F4D3A]">
-                      {evaluationDate}
+                  <span className="text-[13px] font-bold text-[#161A18]">
+                    Two-Pointer Timeline Range:
+                  </span>
+                  <span className="tabular-nums-lining rounded-md bg-[#FDF3E4] px-2 py-0.5 text-[12px] font-bold text-[#9A5B13]">
+                    📍 1. {selectedEntryBar?.trading_date}
+                  </span>
+                  <span className="text-[#6E7771] font-semibold text-[12px]">→</span>
+                  <span className="tabular-nums-lining rounded-md bg-[#E6F2EC] px-2 py-0.5 text-[12px] font-bold text-[#1F4D3A]">
+                    ⏱️ 2. {evaluationDate}
+                  </span>
+                  {holdingStats && (
+                    <span className="tabular-nums-lining rounded-md bg-[#161A18] px-2 py-0.5 text-[11px] font-semibold text-white">
+                      Holding: {holdingStats.holdingTimeFormatted}
                     </span>
-                  </label>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -926,7 +1208,7 @@ export function PretendMoneyPage() {
                     className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-[rgba(22,26,24,0.12)] bg-white px-2.5 py-1 text-[11.5px] font-semibold text-[#161A18] hover:bg-[#E6F2EC]/50 disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     <FastForward size={13} weight="bold" aria-hidden="true" />
-                    <span>+6 Months</span>
+                    <span>+6 Mos</span>
                   </button>
                   <button
                     type="button"
@@ -935,7 +1217,7 @@ export function PretendMoneyPage() {
                     className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-[rgba(22,26,24,0.12)] bg-white px-2.5 py-1 text-[11.5px] font-semibold text-[#161A18] hover:bg-[#E6F2EC]/50 disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     <FastForward size={13} weight="bold" aria-hidden="true" />
-                    <span>+1 Year</span>
+                    <span>+1 Yr</span>
                   </button>
                   <button
                     type="button"
@@ -943,28 +1225,77 @@ export function PretendMoneyPage() {
                     disabled={effectiveEvalIndex >= fullSeries.length - 1}
                     className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-[#1F4D3A] px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-[#16382A] disabled:cursor-not-allowed disabled:opacity-45"
                   >
-                    <span>Latest Date ({timelineMeta?.end_date})</span>
+                    <span>Hold till Latest ({timelineMeta?.end_date})</span>
                   </button>
                 </div>
               </div>
 
-              <input
-                id="evaluation-date-scrubber"
-                type="range"
-                min={0}
-                max={Math.max(0, fullSeries.length - 1)}
-                value={effectiveEvalIndex}
-                onChange={(e) => setEvalBarIndex(Number(e.target.value))}
-                className="h-2 w-full cursor-pointer accent-[#1F4D3A]"
-              />
+              {/* Dual Range Controls */}
+              <div className="space-y-2 pt-1">
+                {/* Visual range span bar */}
+                <div className="relative h-2 w-full rounded-full bg-[#E8E4DB] overflow-hidden">
+                  <div
+                    className="absolute top-0 bottom-0 rounded-full bg-gradient-to-r from-[#9A5B13] via-[#3B8E6A] to-[#1F4D3A] transition-all"
+                    style={{
+                      left: `${(selectedEntryIndex / Math.max(1, fullSeries.length - 1)) * 100}%`,
+                      width: `${Math.max(
+                        1,
+                        ((effectiveEvalIndex - selectedEntryIndex) / Math.max(1, fullSeries.length - 1)) * 100
+                      )}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {/* Slider 1: Pointer 1 (Entry Date) */}
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] mb-0.5">
+                      <label htmlFor="pointer-1-slider" className="font-bold text-[#9A5B13]">
+                        📍 Pointer 1 (Invest Date): {selectedEntryBar?.trading_date}
+                      </label>
+                      <span className="tabular-nums-lining text-[#6E7771]">
+                        {selectedEntryBar?.close ? formatInr(selectedEntryBar.close, 2) : "—"}
+                      </span>
+                    </div>
+                    <input
+                      id="pointer-1-slider"
+                      type="range"
+                      min={0}
+                      max={Math.max(0, fullSeries.length - 1)}
+                      value={selectedEntryIndex}
+                      onChange={(e) => handleSetPointer1(Number(e.target.value))}
+                      className="h-2 w-full cursor-pointer accent-[#9A5B13]"
+                    />
+                  </div>
+
+                  {/* Slider 2: Pointer 2 (Hold Till Date) - STRICTLY MIN = selectedEntryIndex! */}
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] mb-0.5">
+                      <label htmlFor="pointer-2-slider" className="font-bold text-[#1F4D3A]">
+                        ⏱️ Pointer 2 (Hold Till Date): {evaluationDate}
+                      </label>
+                      <span className="tabular-nums-lining text-[#6E7771]">
+                        {fullSeries[effectiveEvalIndex]?.close ? formatInr(fullSeries[effectiveEvalIndex].close, 2) : "—"}
+                      </span>
+                    </div>
+                    <input
+                      id="pointer-2-slider"
+                      type="range"
+                      min={selectedEntryIndex}
+                      max={Math.max(0, fullSeries.length - 1)}
+                      value={effectiveEvalIndex}
+                      onChange={(e) => handleSetPointer2(Number(e.target.value))}
+                      className="h-2 w-full cursor-pointer accent-[#1F4D3A]"
+                    />
+                  </div>
+                </div>
+              </div>
 
               <div className="tabular-nums-lining flex items-center justify-between text-[11px] text-[#6E7771]">
                 <span>10Y Start: {fullSeries[0]?.trading_date}</span>
                 <span>
-                  Stock Close on {evaluationDate}:{" "}
-                  <strong className="text-[#161A18]">
-                    {formatInr(fullSeries[effectiveEvalIndex]?.close, 2)}
-                  </strong>
+                  Holding:{" "}
+                  <strong className="text-[#161A18]">{holdingStats?.holdingTimeFormatted ?? "—"}</strong>
                 </span>
                 <span>Latest: {fullSeries[fullSeries.length - 1]?.trading_date}</span>
               </div>
@@ -1025,15 +1356,9 @@ export function PretendMoneyPage() {
                   type="range"
                   min={0}
                   max={Math.max(0, fullSeries.length - 1)}
-                  value={Math.max(
-                    0,
-                    fullSeries.findIndex(
-                      (b) => b.trading_date === selectedEntryBar?.trading_date
-                    )
-                  )}
+                  value={selectedEntryIndex}
                   onChange={(e) => {
-                    const bar = fullSeries[Number(e.target.value)];
-                    if (bar) setSelectedEntryDate(bar.trading_date);
+                    handleSetPointer1(Number(e.target.value));
                   }}
                   className="h-2 w-full cursor-pointer accent-[#9A5B13]"
                 />
@@ -1088,7 +1413,7 @@ export function PretendMoneyPage() {
               <Button
                 variant="primary"
                 size="md"
-                onClick={() => handleAddAllocationOnDate()}
+                onClick={handleApplyMoneyPointer1}
                 disabled={remainingWalletCash <= 0 || !selectedEntryBar}
                 className="w-full justify-center"
               >
@@ -1180,89 +1505,155 @@ export function PretendMoneyPage() {
         </GlassCard>
       </div>
 
-      {/* 4-Column Deterministic 10-Year Outcome Ledger Cards */}
-      {evalData && (
+      {/* Two-Pointer Hold & Return Calculation Highlight Card */}
+      {holdingStats && (
         <section
-          aria-label="Pretend money 10-year historical outcome summary"
-          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          aria-label="Two-pointer holding duration and return calculation"
+          className="space-y-3"
         >
-          {/* Card 1: Pretend Portfolio Value at Evaluation Date */}
-          <GlassCard compact className="space-y-1.5 !p-4">
-            <span className="text-[11.5px] font-semibold tracking-[0.04em] text-[#6E7771] uppercase">
-              Pretend Portfolio on {evalData.evaluation_date}
-            </span>
-            <p className="tabular-nums-lining m-0 text-[22px] font-bold tracking-[-0.02em] text-[#161A18]">
-              {formatInr(evalData.total_portfolio_value_inr)}
-            </p>
-            <div className="flex flex-wrap items-center gap-2 text-[12px]">
-              <span
-                className={`tabular-nums-lining rounded-full px-2 py-0.5 font-semibold ${
-                  evalData.total_net_change_inr >= 0
-                    ? "bg-[#E6F2EC] text-[#1F4D3A]"
-                    : "bg-[#FDF3E4] text-[#9A5B13]"
+          <GlassCard className="border-2 border-[#1F4D3A]/25 bg-gradient-to-br from-white/95 via-[#FAF8F4] to-[#EAF4EF]/75 p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-b border-[rgba(22,26,24,0.08)] pb-3.5">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1F4D3A] text-white text-[12px] font-bold shadow-xs">
+                    2
+                  </span>
+                  <h3 className="m-0 text-[17.5px] font-bold tracking-[-0.015em] text-[#161A18]">
+                    Hold &amp; Return Calculation · Pointer 1 to Pointer 2
+                  </h3>
+                  <span
+                    className={`tabular-nums-lining inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11.5px] font-bold ${
+                      holdingStats.isPositive
+                        ? "bg-[#E6F2EC] text-[#1F4D3A] border border-[#3B8E6A]/30"
+                        : "bg-[#FDF3E4] text-[#9A5B13] border border-[#9A5B13]/30"
+                    }`}
+                  >
+                    {holdingStats.isPositive ? (
+                      <TrendUp size={14} weight="bold" />
+                    ) : (
+                      <TrendDown size={14} weight="bold" />
+                    )}
+                    <span>
+                      {holdingStats.isPositive ? "POSITIVE GAIN" : "NEGATIVE LOSS"}
+                    </span>
+                  </span>
+                </div>
+                <p className="mt-1 mb-0 text-[12.5px] text-[#4A524D]">
+                  Applied fake money on <strong>Pointer 1</strong> ({holdingStats.entryDate} @ {formatInr(holdingStats.entryPrice, 2)}) → Held until <strong>Pointer 2</strong> ({holdingStats.exitDate} @ {formatInr(holdingStats.exitPrice, 2)})
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="tabular-nums-lining rounded-xl bg-white/90 border border-[rgba(22,26,24,0.1)] px-3 py-1.5 text-[12px] font-semibold text-[#161A18] shadow-xs">
+                  Stock: <strong className="text-[#1F4D3A]">{formatInr(holdingStats.entryPrice, 2)} → {formatInr(holdingStats.exitPrice, 2)}</strong> ({formatSignedPct(holdingStats.pnlPct)})
+                </span>
+              </div>
+            </div>
+
+            {/* 4 Core Simple Metrics requested by user */}
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+              {/* 1. How much I invest */}
+              <div className="rounded-xl border border-[rgba(22,26,24,0.08)] bg-white/95 p-4 shadow-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold tracking-[0.04em] text-[#6E7771] uppercase">
+                    1. Money Invested
+                  </span>
+                  <Coins size={16} weight="duotone" className="text-[#9A5B13]" />
+                </div>
+                <strong className="tabular-nums-lining block text-[24px] font-bold text-[#161A18] tracking-[-0.02em]">
+                  {formatInr(holdingStats.investedInr)}
+                </strong>
+                <span className="tabular-nums-lining block text-[11.5px] text-[#4A524D]">
+                  {holdingStats.sharesAllocated.toFixed(2)} shares @ {formatInr(holdingStats.entryPrice, 2)}
+                </span>
+              </div>
+
+              {/* 2. How many time I hold */}
+              <div className="rounded-xl border border-[rgba(22,26,24,0.08)] bg-white/95 p-4 shadow-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold tracking-[0.04em] text-[#6E7771] uppercase">
+                    2. Time Held
+                  </span>
+                  <Hourglass size={16} weight="duotone" className="text-[#1F4D3A]" />
+                </div>
+                <strong className="tabular-nums-lining block text-[20px] font-bold text-[#1F4D3A] tracking-[-0.015em] leading-snug">
+                  {holdingStats.holdingTimeFormatted}
+                </strong>
+                <span className="tabular-nums-lining block text-[11.5px] text-[#4A524D]">
+                  {holdingStats.entryDate} → {holdingStats.exitDate}
+                </span>
+              </div>
+
+              {/* 3. Profit and Loss */}
+              <div
+                className={`rounded-xl border p-4 shadow-xs space-y-1 ${
+                  holdingStats.isPositive
+                    ? "border-[#3B8E6A]/30 bg-[#F2F8F4]"
+                    : "border-[#9A5B13]/30 bg-[#FDF8F0]"
                 }`}
               >
-                {formatSignedPct(evalData.total_return_pct)} (
-                {evalData.total_net_change_inr >= 0 ? "+" : ""}
-                {formatInr(evalData.total_net_change_inr)})
-              </span>
-              {evalData.portfolio_cagr_pct !== null && (
-                <span className="tabular-nums-lining text-[#6E7771]">
-                  CAGR: <strong>{formatSignedPct(evalData.portfolio_cagr_pct)}</strong>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold tracking-[0.04em] text-[#6E7771] uppercase">
+                    3. Profit &amp; Loss
+                  </span>
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-bold ${
+                      holdingStats.isPositive ? "bg-[#E6F2EC] text-[#1F4D3A]" : "bg-[#FDF3E4] text-[#9A5B13]"
+                    }`}
+                  >
+                    {holdingStats.isPositive ? "NET PROFIT" : "NET LOSS"}
+                  </span>
+                </div>
+                <strong
+                  className={`tabular-nums-lining block text-[24px] font-bold tracking-[-0.02em] ${
+                    holdingStats.isPositive ? "text-[#1F4D3A]" : "text-[#9A5B13]"
+                  }`}
+                >
+                  {holdingStats.isPositive ? "+" : "-"}
+                  {formatInr(Math.abs(holdingStats.netPnlInr))}
+                </strong>
+                <span className="tabular-nums-lining block text-[11.5px] text-[#4A524D]">
+                  Final Value: <strong className="text-[#161A18]">{formatInr(holdingStats.finalValueInr)}</strong>
                 </span>
-              )}
+              </div>
+
+              {/* 4. Total percentage of stock it is positive or negative */}
+              <div
+                className={`rounded-xl border p-4 shadow-xs space-y-1 ${
+                  holdingStats.isPositive
+                    ? "border-[#3B8E6A]/30 bg-[#F2F8F4]"
+                    : "border-[#9A5B13]/30 bg-[#FDF8F0]"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold tracking-[0.04em] text-[#6E7771] uppercase">
+                    4. Total Stock Return %
+                  </span>
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-bold ${
+                      holdingStats.isPositive ? "bg-[#E6F2EC] text-[#1F4D3A]" : "bg-[#FDF3E4] text-[#9A5B13]"
+                    }`}
+                  >
+                    {holdingStats.isPositive ? "POSITIVE %" : "NEGATIVE %"}
+                  </span>
+                </div>
+                <strong
+                  className={`tabular-nums-lining block text-[24px] font-bold tracking-[-0.02em] ${
+                    holdingStats.isPositive ? "text-[#1F4D3A]" : "text-[#9A5B13]"
+                  }`}
+                >
+                  {formatSignedPct(holdingStats.pnlPct)}
+                </strong>
+                <span className="tabular-nums-lining block text-[11.5px] text-[#4A524D]">
+                  {holdingStats.isPositive ? "Positive stock gain" : "Negative stock decline"}
+                </span>
+              </div>
             </div>
-          </GlassCard>
-
-          {/* Card 2: Same Fake Money in NIFTY 50 Benchmark */}
-          <GlassCard compact className="space-y-1.5 !p-4">
-            <span className="text-[11.5px] font-semibold tracking-[0.04em] text-[#6E7771] uppercase">
-              Same Dates in NIFTY 50 Index
-            </span>
-            <p className="tabular-nums-lining m-0 text-[22px] font-bold tracking-[-0.02em] text-[#4E5964]">
-              {formatInr(evalData.nifty_equivalent_portfolio_inr)}
-            </p>
-            <div className="flex flex-wrap items-center justify-between gap-1 text-[12px] text-[#4A524D]">
-              <span className="tabular-nums-lining font-semibold">
-                Index: {formatSignedPct(evalData.nifty_equivalent_return_pct)}
-              </span>
-              <span className="tabular-nums-lining text-[11.5px] text-[#6E7771]">
-                6.5% Fixed Ref: {formatInr(evalData.fixed_reference_portfolio_inr)}
-              </span>
-            </div>
-          </GlassCard>
-
-          {/* Card 3: Maximum Historical Post-Entry Drawdown */}
-          <GlassCard compact className="space-y-1.5 !p-4">
-            <span className="text-[11.5px] font-semibold tracking-[0.04em] text-[#6E7771] uppercase">
-              Steepest Post-Entry Drawdown
-            </span>
-            <p className="tabular-nums-lining m-0 text-[22px] font-bold tracking-[-0.02em] text-[#9A5B13]">
-              -{evalData.worst_tranche_drawdown_pct.toFixed(2)}%
-            </p>
-            <p className="m-0 text-[12px] text-[#4A524D]">
-              {evalData.worst_drawdown_date
-                ? `Deepest trough observed on ${evalData.worst_drawdown_date}`
-                : "No post-entry drawdown recorded"}
-            </p>
-          </GlassCard>
-
-          {/* Card 4: Cash & Stop-Loss Protection Status */}
-          <GlassCard compact className="space-y-1.5 !p-4">
-            <span className="text-[11.5px] font-semibold tracking-[0.04em] text-[#6E7771] uppercase">
-              Cash &amp; Stop-Loss Discipline
-            </span>
-            <p className="tabular-nums-lining m-0 text-[22px] font-bold tracking-[-0.02em] text-[#161A18]">
-              {formatInr(evalData.unallocated_cash_inr + evalData.stopped_out_cash_inr)}
-            </p>
-            <p className="m-0 text-[12px] text-[#4A524D]">
-              {evalData.stop_loss_pct === null
-                ? "No stop-loss active (unprotected exposure)"
-                : `${evalData.stop_loss_pct}% rule · ${evalData.stopped_out_tranche_count} tranche(s) stopped into cash`}
-            </p>
           </GlassCard>
         </section>
       )}
+
+
 
       {/* Portfolio Equity Curve vs NIFTY 50 + Guarded Educational Takeaways */}
       {evalData && (
