@@ -400,15 +400,28 @@ describe("Phase 4 — Real-Time Stocks & Finfluencers Pages", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Pretend Money · 10-Year Stock Timeline/i)).toBeInTheDocument();
+      expect(screen.getByText(/Graph Pointers:/i)).toBeInTheDocument();
+      expect(screen.getByText(/1\. Invest on:/i)).toBeInTheDocument();
+      expect(screen.getByText(/2\. Hold till:/i)).toBeInTheDocument();
+      expect(screen.getByText(/Hold & Return Calculation · Pointer 1 to Pointer 2/i)).toBeInTheDocument();
+      expect(screen.getByText(/1\. Money Invested/i)).toBeInTheDocument();
+      expect(screen.getByText(/2\. Time Held/i)).toBeInTheDocument();
+      expect(screen.getByText(/3\. Profit & Loss/i)).toBeInTheDocument();
+      expect(screen.getByText(/4\. Total Stock Return %/i)).toBeInTheDocument();
       expect(screen.getByText(/Guarded Historical Evidence Takeaways/i)).toBeInTheDocument();
       expect(screen.getByText(/Output Guard Verified/i)).toBeInTheDocument();
       expect(screen.getAllByText(/₹1,95,000/i).length).toBeGreaterThan(0);
     });
 
+    // Verify Slider 2 enforces constraint min >= Pointer 1 index
+    const pointer2Slider = screen.getByLabelText(/Pointer 2 \(Hold Till Date\):/i) as HTMLInputElement;
+    const pointer1Slider = screen.getByLabelText(/Pointer 1 \(Invest Date\):/i) as HTMLInputElement;
+    expect(Number(pointer2Slider.min)).toBeGreaterThanOrEqual(Number(pointer1Slider.value));
+
     // Apply a one-click scenario preset
     fireEvent.click(screen.getByRole("button", { name: /100% Lump Sum 10 Years Ago/i }));
     await waitFor(() => {
-      expect(screen.getByText(/Same Dates in NIFTY 50 Index/i)).toBeInTheDocument();
+      expect(screen.getByText(/NIFTY 50 Baseline/i)).toBeInTheDocument();
     });
   });
 });
