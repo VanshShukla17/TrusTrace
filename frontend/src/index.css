@@ -126,6 +126,20 @@
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   border: 1px solid var(--border-hairline);
   box-shadow: var(--shadow-glass-sm);
+  animation: cardFadeRiseIn 540ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition:
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.glass-card:hover {
+  transform: translate3d(0, -2px, 0);
+  border-color: rgba(74, 124, 100, 0.22);
+  box-shadow:
+    0 14px 30px -8px rgba(22, 26, 24, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .glass-card-subtle {
@@ -133,6 +147,117 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-hairline);
+  animation: cardFadeRiseIn 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ==========================================================================
+   Choreographed Page & Staggered Card Entrance Animations
+   ========================================================================== */
+
+@keyframes pageStageFadeIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes cardFadeRiseIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.986);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes sparklineReveal {
+  0% {
+    opacity: 0;
+    stroke-dasharray: 240;
+    stroke-dashoffset: 240;
+  }
+  100% {
+    opacity: 1;
+    stroke-dasharray: 240;
+    stroke-dashoffset: 0;
+  }
+}
+
+.page-transition-stage {
+  animation: pageStageFadeIn 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Automatic top-to-bottom section choreography within any page */
+.page-transition-stage > * > :nth-child(1) {
+  animation: pageStageFadeIn 420ms cubic-bezier(0.22, 1, 0.36, 1) 20ms both;
+}
+.page-transition-stage > * > :nth-child(2) {
+  animation: pageStageFadeIn 460ms cubic-bezier(0.22, 1, 0.36, 1) 75ms both;
+}
+.page-transition-stage > * > :nth-child(3) {
+  animation: pageStageFadeIn 500ms cubic-bezier(0.22, 1, 0.36, 1) 130ms both;
+}
+.page-transition-stage > * > :nth-child(4) {
+  animation: pageStageFadeIn 520ms cubic-bezier(0.22, 1, 0.36, 1) 185ms both;
+}
+.page-transition-stage > * > :nth-child(5) {
+  animation: pageStageFadeIn 540ms cubic-bezier(0.22, 1, 0.36, 1) 235ms both;
+}
+.page-transition-stage > * > :nth-child(6) {
+  animation: pageStageFadeIn 560ms cubic-bezier(0.22, 1, 0.36, 1) 280ms both;
+}
+
+/* Automatic left-to-right / grid card stagger delays */
+.glass-card:nth-child(1),
+.glass-card-subtle:nth-child(1) {
+  animation-delay: calc(var(--card-stagger, 0) * 55ms + 35ms);
+}
+.glass-card:nth-child(2),
+.glass-card-subtle:nth-child(2) {
+  animation-delay: calc(var(--card-stagger, 0) * 55ms + 90ms);
+}
+.glass-card:nth-child(3),
+.glass-card-subtle:nth-child(3) {
+  animation-delay: calc(var(--card-stagger, 0) * 55ms + 145ms);
+}
+.glass-card:nth-child(4),
+.glass-card-subtle:nth-child(4) {
+  animation-delay: calc(var(--card-stagger, 0) * 55ms + 200ms);
+}
+.glass-card:nth-child(5),
+.glass-card-subtle:nth-child(5) {
+  animation-delay: calc(var(--card-stagger, 0) * 55ms + 250ms);
+}
+.glass-card:nth-child(6),
+.glass-card-subtle:nth-child(6) {
+  animation-delay: calc(var(--card-stagger, 0) * 55ms + 300ms);
+}
+
+/* Smooth SVG sparkline drawing on card entrance */
+.glass-card svg polyline {
+  animation: sparklineReveal 820ms cubic-bezier(0.22, 1, 0.36, 1) 180ms both;
+}
+
+/* Smooth table row & list item transitions */
+tbody tr {
+  transition:
+    background-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Smooth modal / dialog pop entrance */
+div[role="dialog"] {
+  animation: cardFadeRiseIn 320ms cubic-bezier(0.34, 1.45, 0.64, 1) both;
 }
 
 .glass-shell {
@@ -212,8 +337,17 @@
   }
   .animate-hero-wave,
   .animate-portrait-live,
-  .skeleton-shimmer {
+  .skeleton-shimmer,
+  .page-transition-stage,
+  .page-transition-stage > * > *,
+  .glass-card,
+  .glass-card-subtle,
+  .glass-card svg polyline,
+  div[role="dialog"] {
     animation: none !important;
+  }
+  .glass-card:hover {
+    transform: none !important;
   }
   *,
   *::before,

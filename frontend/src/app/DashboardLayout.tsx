@@ -1,4 +1,5 @@
-import { Outlet } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { Outlet, useLocation } from "react-router-dom";
 import { ShieldCheck } from "@phosphor-icons/react";
 import DashBoardBackground from "../components/DashBoardBackground";
 import { StickyBubblyNav } from "../components/StickyBubblyNav";
@@ -6,6 +7,16 @@ import { DisclaimerBanner } from "../components/ui/DisclaimerBanner";
 import { CORE_PRODUCT_RULE } from "../lib/constants";
 
 export function DashboardLayout() {
+  const location = useLocation();
+  const mainRef = useRef<HTMLElement | null>(null);
+
+  // Reset scroll position to top cleanly when switching routes so entrance animations play in view
+  useEffect(() => {
+    if (mainRef.current && typeof mainRef.current.scrollTo === "function") {
+      mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [location.pathname]);
+
   return (
     <div className="relative isolate flex h-[100dvh] w-full flex-col gap-2 overflow-hidden bg-[#F3EFE7] px-2 pt-2.5 pb-2 sm:gap-2.5 sm:px-4 sm:pt-3.5 sm:pb-2.5 lg:px-5 lg:pt-4 lg:pb-3">
       <a
@@ -22,11 +33,14 @@ export function DashboardLayout() {
         {/* Fluid Main Column: internal scrolling content area + pinned compact disclaimer */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <main
+            ref={mainRef}
             id="main-content"
             tabIndex={-1}
             className="glass-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 lg:p-6"
           >
-            <Outlet />
+            <div key={location.pathname} className="page-transition-stage">
+              <Outlet />
+            </div>
           </main>
 
           <div className="flex shrink-0 flex-col gap-2 border-t border-[rgba(22,26,24,0.08)] bg-[rgba(250,248,244,0.72)] px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 lg:px-6">
